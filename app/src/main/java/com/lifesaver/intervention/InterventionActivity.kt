@@ -168,16 +168,17 @@ private fun InterventionContent(
     LaunchedEffect(Unit) { visible = true }
     val enter by animateFloatAsState(if (visible) 1f else 0f, tween(350), label = "enter")
 
+    // Countdown is driven by wall-clock from a saved start, so rotation / any recreation resumes
+    // where it was instead of resetting.
+    val startMs = androidx.compose.runtime.saveable.rememberSaveable { System.currentTimeMillis() }
     var elapsed by remember { mutableStateOf(0f) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(startMs) {
         val total = frictionSeconds.coerceAtLeast(1) * 1000L
-        var t = 0L
-        while (t < total) {
+        while (true) {
+            elapsed = ((System.currentTimeMillis() - startMs).toFloat() / total).coerceIn(0f, 1f)
+            if (elapsed >= 1f) break
             kotlinx.coroutines.delay(50)
-            t += 50
-            elapsed = (t.toFloat() / total).coerceIn(0f, 1f)
         }
-        elapsed = 1f
     }
     val done = elapsed >= 1f
 
