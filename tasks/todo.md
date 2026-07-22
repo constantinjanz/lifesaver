@@ -4,21 +4,22 @@ Stack: Kotlin + Jetpack Compose + Room + DataStore, minSdk 26 / target 36.
 Toolchain: Gradle 9.6.1, AGP 9.2.1, Kotlin 2.3.10. Build with JBR (JDK 21) + local SDK.
 Plan: `~/.claude/plans/declarative-doodling-sparrow.md`. Source of truth: `PRD.md`, theme: `DESIGN.md`.
 
-## Foundation (shared, lands in M1)
+## Foundation (shared, lands in M1)  ✅ DONE — builds, 19 unit tests pass
 - [x] Gradle project (wrapper 9.6.1, AGP 9.2.1, Kotlin 2.3.10), version matrix pinned to cached deps
 - [x] `LifesaverTheme` — 2016 Material dark palette, Roboto type scale, 2dp shapes, flat surfaces
 - [x] Reusable components: RaisedButton, FlatButton (ALL CAPS enforced), LifesaverCard, BudgetBar, CountdownRing
 - [x] Launcher icon, manifest, Application class
-- [ ] **Validate: `assembleDebug` produces app-debug.apk** (in progress)
-- [ ] Room DB + entities + DAOs (8 tables, v1.1-forward-compatible)
-- [ ] DataStore SettingsRepository
-- [ ] `DetectionConfig` (single source of IG/YT markers)
+- [x] **Validate: `assembleDebug` produces app-debug.apk**
+- [x] Room DB + entities + DAOs (8 tables, v1.1-forward-compatible)
+- [x] DataStore SettingsRepository
+- [x] `DetectionConfig` (single source of IG/YT markers)
+- [x] Domain logic + unit tests: BudgetEngine, FrictionLadder, Streak, TimeSaved, SelfBinding, Baseline, DayKeys
 
-## M1 — Scaffold & permissions
-- [ ] Onboarding viewpager shell (concept pages)
-- [ ] Guided permissions flow: Usage Access, Accessibility, Overlay, Battery-opt — explanation + deep link + live status
-- [ ] Dashboard skeleton reading UsageStatsManager (today's IG/YT usage)
-- [ ] Nav graph (dashboard / onboarding / settings / debug)
+## M1 — Scaffold & permissions  ✅ DONE — builds
+- [x] Onboarding viewpager shell (concept pages + budget sliders)
+- [x] Guided permissions flow: Usage Access, Accessibility, Overlay, Battery-opt — explanation + deep link + live status
+- [x] Dashboard skeleton reading UsageStatsManager (today's IG/YT usage) + baseline banner
+- [x] Nav graph (dashboard / onboarding / settings / plans / debug)
 
 ## M2 — Baseline & budget engine
 - [ ] 2-day observation mode + baseline banner
