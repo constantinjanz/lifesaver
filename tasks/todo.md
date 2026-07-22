@@ -56,5 +56,22 @@ Plan: `~/.claude/plans/declarative-doodling-sparrow.md`. Source of truth: `PRD.m
 - [x] Empty states (zeros render), polish
 - [x] §7 acceptance-criteria manual-QA checklist doc (docs/manual-qa.md — device-only checks)
 
-## Review notes
-(filled per milestone)
+## Review
+
+**v1 (M1–M7) complete.** Clean build from scratch: BUILD SUCCESSFUL; 19 unit tests pass;
+`app-debug.apk` (~20 MB) produced. Committed in 5 milestone commits.
+
+**Verified here (build machine):** compiles clean, domain logic unit-tested (budget 1x/2x,
+friction ladder, streak, time-saved, self-binding, baseline, day-keys).
+
+**Not verifiable here — needs the Samsung + real IG/YT apps** (see `docs/manual-qa.md`):
+intervention appears <1s with no feed flash; 1x vs 2x stopwatch on Reels/Shorts; block at zero /
+lift at midnight; redirect launches; reboot + overnight battery-opt survival; data survives reboot.
+
+**Known follow-ups / honest gaps:**
+- Circular-reveal transition on the intervention (DESIGN.md §5) not implemented — countdown ring +
+  breathing pulse are in; the reveal animation is polish left for a later pass.
+- IG/YT surface view-ID markers in `DetectionConfig` are best-effort guesses; confirm against the
+  live apps via the Debug screen and adjust that one file.
+- v1.1 (§9) not started (session profiling, integrity/tracking-gaps, browser blocking, life layer,
+  weekly report, streak insurance, backup/restore) — schema + detection config are ready for it.
