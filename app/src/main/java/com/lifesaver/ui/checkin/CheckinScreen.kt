@@ -36,18 +36,7 @@ fun CheckinScreen(onSubmit: (control: Int, satisfaction: Int, impulse: Int) -> U
     var satisfaction by remember { mutableStateOf(5f) }
     var impulse by remember { mutableStateOf(5f) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Weekly check-in") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
+    com.lifesaver.ui.components.glass.GlassScreen(title = "Weekly check-in", onBack = onBack, seed = 5) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

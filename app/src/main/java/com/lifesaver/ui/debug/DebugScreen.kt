@@ -3,6 +3,7 @@ package com.lifesaver.ui.debug
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -25,22 +26,22 @@ import com.lifesaver.service.Permissions
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugScreen(permissions: Map<Permissions.Kind, Boolean>, onBack: () -> Unit) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Debug") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
+    com.lifesaver.ui.components.glass.GlassScreen(title = "Debug", onBack = onBack, seed = 6) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            androidx.compose.foundation.layout.Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+            ) {
+                Text("Backdrop blur (A/B)", style = MaterialTheme.typography.bodyMedium)
+                androidx.compose.material3.Switch(
+                    checked = com.lifesaver.ui.theme.GlassPrefs.blurEnabled,
+                    onCheckedChange = { com.lifesaver.ui.theme.GlassPrefs.blurEnabled = it },
+                )
+            }
             Line("accessibility.connected", LifesaverAccessibilityService.isConnected.toString())
             Line("last.foreground.pkg", LifesaverAccessibilityService.lastForegroundPackage ?: "—")
             Line("last.foreground.isTarget", LifesaverAccessibilityService.lastForegroundIsTarget.toString())

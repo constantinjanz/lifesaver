@@ -34,20 +34,9 @@ fun PlansScreen(onBack: () -> Unit) {
         value = container.settings.current()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Plans & redirects") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
+    com.lifesaver.ui.components.glass.GlassScreen(title = "Plans & redirects", onBack = onBack, seed = 4) { padding ->
         val initial = loaded
-        if (initial == null) return@Scaffold
+        if (initial == null) return@GlassScreen
 
         var plans by remember { mutableStateOf(initial.ifThenPlans) }
         var redirects by remember { mutableStateOf(initial.redirectApps) }
