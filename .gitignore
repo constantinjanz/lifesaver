@@ -1,0 +1,21 @@
+# Android / Gradle
+*.iml
+.gradle/
+/local.properties
+.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+
+# Build outputs
+app/build/
+build/
+
+# Node (legacy RN artifacts, if any land here)
+node_modules/

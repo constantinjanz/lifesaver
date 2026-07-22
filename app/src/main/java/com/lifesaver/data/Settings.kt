@@ -1,0 +1,82 @@
+package com.lifesaver.data
+
+import com.lifesaver.detection.DetectionConfig
+import org.json.JSONArray
+import org.json.JSONObject
+
+/** A user implementation intention (§3.1). context is a stable key; label is shown. */
+data class IfThenPlan(
+    val context: String, // evening | waiting | just_woke | custom:<id>
+    val label: String, // e.g. "Evening (after 21:00)"
+    val text: String, // "If I want to scroll ..., then I will ..."
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("context", context).put("label", label).put("text", text)
+
+    companion object {
+        fun fromJson(o: JSONObject) = IfThenPlan(
+            o.optString("context"), o.optString("label"), o.optString("text"),
+        )
+    }
+}
+
+/** A chosen redirect target app (§3.1). */
+data class RedirectApp(val appId: String, val label: String) {
+    fun toJson(): JSONObject = JSONObject().put("appId", appId).put("label", label)
+    companion object {
+        fun fromJson(o: JSONObject) = RedirectApp(o.optString("appId"), o.optString("label"))
+    }
+}
+
+enum class Strictness { GENTLE, STANDARD, STRICT }
+
+/** Immutable snapshot of all user settings. */
+data class Settings(
+    val onboardingComplete: Boolean = false,
+    /** Local epoch-day when the 2-day baseline observation began; -1 if not started. */
+    val baselineStartEpochDay: Long = -1,
+    val budgetMinByApp: Map<String, Int> = mapOf(
+        DetectionConfig.INSTAGRAM to 30,
+        DetectionConfig.YOUTUBE to 30,
+    ),
+    val enabledApps: Set<String> = DetectionConfig.targetPackages,
+    val strictness: Strictness = Strictness.STANDARD,
+    val ifThenPlans: List<IfThenPlan> = emptyList(),
+    val redirectApps: List<RedirectApp> = emptyList(),
+) {
+    fun budgetMin(appId: String): Int = budgetMinByApp[appId] ?: 30
+    fun budgetMs(appId: String): Long = budgetMin(appId) * 60_000L
+
+    companion object {
+        fun plansToJson(plans: List<IfThenPlan>): String =
+            JSONArray().apply { plans.forEach { put(it.toJson()) } }.toString()
+
+        fun plansFromJson(s: String?): List<IfThenPlan> {
+            if (s.isNullOrBlank()) return emptyList()
+            val arr = runCatching { JSONArray(s) }.getOrNull() ?: return emptyList()
+            return (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { IfThenPlan.fromJson(it) }
+            }
+        }
+
+        fun redirectsToJson(apps: List<RedirectApp>): String =
+            JSONArray().apply { apps.forEach { put(it.toJson()) } }.toString()
+
+        fun redirectsFromJson(s: String?): List<RedirectApp> {
+            if (s.isNullOrBlank()) return emptyList()
+            val arr = runCatching { JSONArray(s) }.getOrNull() ?: return emptyList()
+            return (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { RedirectApp.fromJson(it) }
+            }
+        }
+
+        fun budgetsToJson(map: Map<String, Int>): String =
+            JSONObject().apply { map.forEach { (k, v) -> put(k, v) } }.toString()
+
+        fun budgetsFromJson(s: String?): Map<String, Int> {
+            if (s.isNullOrBlank()) return emptyMap()
+            val o = runCatching { JSONObject(s) }.getOrNull() ?: return emptyMap()
+            return o.keys().asSequence().associateWith { o.optInt(it, 30) }
+        }
+    }
+}

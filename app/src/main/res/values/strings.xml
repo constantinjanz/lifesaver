@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lifesaver</string>
+    <string name="accessibility_service_label">Lifesaver</string>
+    <string name="accessibility_service_description">Lifesaver watches for Instagram and YouTube opening so it can show a short pause screen before the feed loads. It reads on-screen content only to detect these apps and their Reels/Shorts surfaces. Nothing leaves your phone.</string>
+</resources>
