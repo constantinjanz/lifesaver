@@ -11,6 +11,12 @@ object BaselineModel {
 
     const val MAX_SAMPLE_DAYS = 14
 
+    /** A baseline seeded from the phone's own history, marked fixed so nightly refinement (which
+     *  would see post-enforcement, suppressed usage) never washes it out (user chose history over
+     *  a fresh 2-day observation). */
+    fun seeded(appId: String, group: String, avgMs: Long): Baseline =
+        Baseline(appId, group, avgMs, MAX_SAMPLE_DAYS)
+
     /** Running average that stops moving once MAX_SAMPLE_DAYS samples are in. */
     fun refine(prior: Baseline?, appId: String, group: String, dayEffectiveMs: Long): Baseline {
         if (prior == null) {

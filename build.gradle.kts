@@ -15,3 +15,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.10" apply false
     id("com.google.devtools.ksp") version "2.3.10" apply false
 }
+
+// The project lives in a synced OneDrive folder, which locks files under build/ mid-build
+// (dex AccessDeniedException). Redirect all build output to a non-synced AppData location.
+allprojects {
+    layout.buildDirectory.set(
+        File(System.getProperty("user.home"), "AppData/Local/lifesaver-build/${project.name}"),
+    )
+}

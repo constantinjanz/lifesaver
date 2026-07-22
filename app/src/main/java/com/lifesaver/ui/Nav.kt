@@ -49,6 +49,7 @@ fun LifesaverNavHost(
                 initialBudgets = state.settings.budgetMinByApp,
                 initialPlans = state.settings.ifThenPlans,
                 initialRedirects = state.settings.redirectApps,
+                loadInsight = vm::computeInsight,
                 onGrant = onGrantPermission,
                 onFinish = { plans, redirects, budgets ->
                     vm.completeOnboarding(plans, redirects, budgets)

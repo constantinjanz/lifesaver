@@ -221,16 +221,10 @@ class LifesaverAccessibilityService : AccessibilityService() {
 
     // --- Phase helpers ---
 
+    // Enforcement is live as soon as onboarding completes — the baseline is seeded from history,
+    // so there's no observation period to wait through.
     private fun enforcing(): Boolean =
-        !baselineActive() && settings.onboardingComplete && !settings.isPaused(System.currentTimeMillis())
-
-    private fun baselineActive(): Boolean {
-        if (!settings.onboardingComplete) return true
-        val start = settings.baselineStartEpochDay
-        if (start < 0) return true
-        val today = java.time.LocalDate.now().toEpochDay()
-        return (today - start) < BASELINE_DAYS
-    }
+        settings.onboardingComplete && !settings.isPaused(System.currentTimeMillis())
 
     private fun notifId(app: String) = Notifications.USAGE_NOTIFICATION_ID_BASE + app.hashCode()
 
@@ -246,7 +240,6 @@ class LifesaverAccessibilityService : AccessibilityService() {
     companion object {
         private const val TICK_MS = 5_000L
         private const val DETECT_DEBOUNCE_MS = 500L
-        private const val BASELINE_DAYS = 2
 
         @Volatile var isConnected: Boolean = false; private set
         @Volatile var lastForegroundPackage: String? = null; private set

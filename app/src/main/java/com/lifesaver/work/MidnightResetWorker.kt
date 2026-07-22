@@ -45,38 +45,29 @@ class MidnightResetWorker(context: Context, params: WorkerParameters) :
             db.baselineDao().upsert(refined)
         }
 
-        // Only score streaks once enforcement is live (baseline days are observation-only, §3.1).
-        if (!isBaselineDay(settings.baselineStartEpochDay, endedDay)) {
-            val withinBudget = enabled.all { app ->
-                val usage = db.usageDao().get(endedDay, app)
-                val budget = usage?.budgetMs ?: settings.budgetMs(app)
-                val eff = usage?.let { BudgetEngine.effectiveBurnMs(it) } ?: 0L
-                budget <= 0 || eff <= budget
-            }
-            val unlocksUsed = db.unlockDao().forWeek(DayKeys.weekKeyOf(endedDay))
-                .count { it.dayKey == endedDay }
-            val success = withinBudget && unlocksUsed == 0
-            val reason = when {
-                unlocksUsed > 0 -> "unlock_used"
-                !withinBudget -> "over_budget"
-                else -> "ok"
-            }
-            db.statusDao().upsert(DailyStatus(endedDay, success, reason, unlocksUsed))
+        // Score the day for streaks (enforcement is live from onboarding — no observation window).
+        val withinBudget = enabled.all { app ->
+            val usage = db.usageDao().get(endedDay, app)
+            val budget = usage?.budgetMs ?: settings.budgetMs(app)
+            val eff = usage?.let { BudgetEngine.effectiveBurnMs(it) } ?: 0L
+            budget <= 0 || eff <= budget
         }
+        val unlocksUsed = db.unlockDao().forWeek(DayKeys.weekKeyOf(endedDay))
+            .count { it.dayKey == endedDay }
+        val success = withinBudget && unlocksUsed == 0
+        val reason = when {
+            unlocksUsed > 0 -> "unlock_used"
+            !withinBudget -> "over_budget"
+            else -> "ok"
+        }
+        db.statusDao().upsert(DailyStatus(endedDay, success, reason, unlocksUsed))
 
         scheduleNext(applicationContext)
         return Result.success()
     }
 
-    private fun isBaselineDay(baselineStartEpochDay: Long, dayKey: String): Boolean {
-        if (baselineStartEpochDay < 0) return true
-        val day = LocalDate.parse(dayKey).toEpochDay()
-        return (day - baselineStartEpochDay) < BASELINE_DAYS
-    }
-
     companion object {
         const val WORK_NAME = "midnight_reset"
-        private const val BASELINE_DAYS = 2
 
         /** Enqueue the next run for just after the next local midnight. */
         fun scheduleNext(context: Context) {

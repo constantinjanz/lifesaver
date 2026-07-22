@@ -6,21 +6,24 @@ installs, and passes unit tests, but not these runtime behaviours. Run through t
 sideload.
 
 ## Install
+The build output is redirected out of OneDrive (to `%LOCALAPPDATA%\lifesaver-build`) to avoid
+sync file-locks. A copy of the latest debug APK is kept at the project root as `Lifesaver-debug.apk`.
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r "Lifesaver-debug.apk"
 ```
+Or copy `Lifesaver-debug.apk` to the phone and tap it (allow "install unknown apps").
 
-## M1 — Scaffold & permissions
+## M1 — Onboarding, permissions, baseline-from-history
 - [ ] App launches to onboarding on first run; concept pages swipe; dots track the page.
-- [ ] Budget sliders move 10–120 min and persist after finishing.
-- [ ] Each of the 4 permission rows deep-links to the correct settings page.
-- [ ] Granting a permission and returning shows a live green checkmark (no app restart).
-- [ ] After finishing onboarding, dashboard shows "Baseline mode: day 1 of 2".
-- [ ] Dashboard "TODAY" shows real minutes for Instagram/YouTube from UsageStatsManager.
+- [ ] "First, the honest part" page → Grant Usage Access → returning shows a green checkmark.
+- [ ] "Here's your reality" page shows real per-app minutes/day, danger-zone hours, morning-first
+      and late-night lines — computed from the phone's existing history (no 2-day wait).
+- [ ] Budget sliders default to ~half your historical average; move 10–120 min and persist.
+- [ ] The remaining 3 permission rows (Accessibility, Overlay, Battery) deep-link correctly.
+- [ ] Dashboard "TIME SAVED THIS WEEK" is non-zero immediately (baseline was seeded, not observed).
 
-## M2 — Baseline & budget engine
-- [ ] During baseline (2 days) no pause/block appears; usage still recorded.
-- [ ] After baseline, opening a watched app past its budget shows the block screen.
+## M2 — Budget engine (enforcement live immediately)
+- [ ] Opening a watched app past its budget shows the block screen (no observation period).
 - [ ] Persistent silent notification shows correct "N min left" while a watched app is open.
 - [ ] Block lifts at local midnight (verify by changing device clock across midnight).
 

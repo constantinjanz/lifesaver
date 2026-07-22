@@ -32,7 +32,6 @@ import java.time.LocalDate
 
 sealed interface Phase {
     data object NotOnboarded : Phase
-    data class Baseline(val day: Int, val total: Int) : Phase
     data object Active : Phase
 }
 
@@ -104,12 +103,14 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardState())
 
-    private fun phaseOf(s: Settings): Phase {
-        if (!s.onboardingComplete) return Phase.NotOnboarded
-        if (s.baselineStartEpochDay < 0) return Phase.Baseline(1, BASELINE_DAYS)
-        val elapsed = (LocalDate.now().toEpochDay() - s.baselineStartEpochDay).toInt()
-        return if (elapsed < BASELINE_DAYS) Phase.Baseline(elapsed + 1, BASELINE_DAYS) else Phase.Active
-    }
+    private fun phaseOf(s: Settings): Phase =
+        if (s.onboardingComplete) Phase.Active else Phase.NotOnboarded
+
+    /** Compute the baseline + insight picture from the phone's usage history (off the main thread). */
+    suspend fun computeInsight(): com.lifesaver.domain.BaselineInsight =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            container.usageReader.computeBaseline()
+        }
 
     fun refreshPermissions() {
         val ctx = getApplication<Application>()
@@ -148,8 +149,22 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
             repo.setIfThenPlans(plans)
             repo.setRedirectApps(redirects)
             budgets.forEach { (appId, min) -> repo.setBudgetMin(appId, min) }
+            // Seed the baseline from the phone's own history instead of a 2-day observation, then
+            // enforce immediately. Best-effort: if Usage Access is missing, seeds resolve to 0.
+            seedBaselineFromHistory()
             repo.setBaselineStartEpochDay(LocalDate.now().toEpochDay())
             repo.setOnboardingComplete(true)
+            refreshUsageStats()
+        }
+    }
+
+    private suspend fun seedBaselineFromHistory() {
+        val insight = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            container.usageReader.computeBaseline()
+        }
+        insight.perApp.forEach { (app, b) ->
+            db.baselineDao().upsert(BaselineModel.seeded(app, "weekday", b.weekdayAvgMs))
+            db.baselineDao().upsert(BaselineModel.seeded(app, "weekend", b.weekendAvgMs))
         }
     }
 
@@ -229,7 +244,6 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
     private fun nowMs() = System.currentTimeMillis()
 
     companion object {
-        const val BASELINE_DAYS = 2
         fun labelFor(appId: String): String = DetectionConfig.targetFor(appId)?.label ?: appId
     }
 }

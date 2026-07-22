@@ -93,10 +93,6 @@ fun DashboardScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val phase = state.phase
-            if (phase is Phase.Baseline) {
-                BaselineBanner(phase.day, phase.total)
-            }
             if (state.permissions.values.any { !it } && state.permissions.isNotEmpty()) {
                 PermissionsWarning(onFixPermissions)
             }
@@ -109,20 +105,6 @@ fun DashboardScreen(
             TimeSavedCard(state)
             SubstitutionCard(state)
         }
-    }
-}
-
-@Composable
-private fun BaselineBanner(day: Int, total: Int) {
-    LifesaverCard {
-        Text("BASELINE MODE", style = MaterialTheme.typography.bodySmall, color = Accent)
-        Spacer(Modifier.height(4.dp))
-        Text("Day $day of $total", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "Just watching for now — no pauses or blocks. Learning your normal so “time saved” is honest.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
     }
 }
 
