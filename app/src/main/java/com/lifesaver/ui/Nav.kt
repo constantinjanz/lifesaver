@@ -12,6 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.lifesaver.service.Permissions
 import com.lifesaver.ui.checkin.CheckinScreen
+import com.lifesaver.ui.components.PlaceholderScreen
 import com.lifesaver.ui.dashboard.DashboardScreen
 import com.lifesaver.ui.debug.DebugScreen
 import com.lifesaver.ui.onboarding.OnboardingScreen
@@ -24,6 +25,9 @@ object Routes {
     const val PLANS = "plans"
     const val CHECKIN = "checkin"
     const val DEBUG = "debug"
+    const val PATTERNS = "patterns"
+    const val LIFE = "life"
+    const val REPORT = "report"
 }
 
 @Composable
@@ -63,8 +67,24 @@ fun LifesaverNavHost(
                 onEditPlans = { nav.navigate(Routes.PLANS) },
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                 onOpenDebug = { nav.navigate(Routes.DEBUG) },
+                onOpenReport = { nav.navigate(Routes.REPORT) },
                 onFixPermissions = { nav.navigate(Routes.ONBOARDING) },
+                onSelectTab = { i ->
+                    when (i) {
+                        1 -> nav.navigate(Routes.PATTERNS)
+                        2 -> nav.navigate(Routes.LIFE)
+                    }
+                },
             )
+        }
+        composable(Routes.PATTERNS) {
+            PlaceholderScreen("Patterns", "Patterns land in the next stage.", onBack = { nav.popBackStack() })
+        }
+        composable(Routes.LIFE) {
+            PlaceholderScreen("Life", "Life log lands in the next stage.", onBack = { nav.popBackStack() })
+        }
+        composable(Routes.REPORT) {
+            PlaceholderScreen("Weekly report", "Weekly report lands in the next stage.", onBack = { nav.popBackStack() })
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(

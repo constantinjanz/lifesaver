@@ -1,30 +1,30 @@
 package com.lifesaver.ui.dashboard
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,184 +38,193 @@ import com.lifesaver.detection.DetectionConfig
 import com.lifesaver.domain.BudgetEngine
 import com.lifesaver.domain.TimeSaved
 import com.lifesaver.ui.DashboardState
-import com.lifesaver.ui.Phase
-import com.lifesaver.ui.components.BudgetBar
-import com.lifesaver.ui.components.LifesaverCard
+import com.lifesaver.ui.components.glass.DockItem
+import com.lifesaver.ui.components.glass.FloatingDock
+import com.lifesaver.ui.components.glass.GlassBackground
+import com.lifesaver.ui.components.glass.GlassPanel
+import com.lifesaver.ui.components.glass.GlassTile
+import com.lifesaver.ui.components.glass.RingGauge
+import com.lifesaver.ui.components.glass.RiskBars
+import com.lifesaver.ui.components.glass.StatusPill
 import com.lifesaver.ui.theme.Accent
-import com.lifesaver.ui.theme.OnAccent
+import com.lifesaver.ui.theme.Danger
+import com.lifesaver.ui.theme.Success
+import com.lifesaver.ui.theme.TextCaption
+import com.lifesaver.ui.theme.TextPrimary
 import com.lifesaver.ui.theme.TextSecondary
-import com.lifesaver.ui.theme.Warning
+import com.lifesaver.ui.theme.clickableNoRipple
 
-@OptIn(ExperimentalMaterial3Api::class)
+val DOCK_ITEMS = listOf(
+    DockItem(Icons.Filled.GridView, "Cockpit"),
+    DockItem(Icons.Filled.BarChart, "Patterns"),
+    DockItem(Icons.Filled.Spa, "Life"),
+)
+
 @Composable
 fun DashboardScreen(
     state: DashboardState,
     onEditPlans: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenDebug: () -> Unit,
+    onOpenReport: () -> Unit,
     onFixPermissions: () -> Unit,
+    onSelectTab: (Int) -> Unit,
 ) {
+    GlassBackground(seed = 0, drift = true) {
+        val topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(top = topInset + 8.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                TopRow(state, onOpenSettings, onOpenReport, onOpenDebug)
+
+                if (state.permissions.values.any { !it } && state.permissions.isNotEmpty()) {
+                    ActionCard("Setup incomplete", "Some permissions are missing — tap to finish.", onFixPermissions)
+                }
+                if (state.pendingChanges.isNotEmpty()) {
+                    ActionCard(
+                        "Pending changes",
+                        "${state.pendingChanges.size} change${if (state.pendingChanges.size == 1) "" else "s"} waiting on the 24h rule.",
+                        onOpenSettings,
+                    )
+                }
+
+                HeroRing(state)
+                BudgetTiles(state)
+                StreakAndSaved(state)
+                SubstitutionCard(state)
+            }
+
+            FloatingDock(
+                items = DOCK_ITEMS,
+                selected = 0,
+                onSelect = onSelectTab,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 28.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TopRow(state: DashboardState, onSettings: () -> Unit, onReport: () -> Unit, onDebug: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Lifesaver", style = MaterialTheme.typography.titleLarge) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = com.lifesaver.ui.theme.AppBar,
-                    titleContentColor = com.lifesaver.ui.theme.TextPrimary,
-                ),
-                actions = {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(text = { Text("Settings") }, onClick = {
-                            menuOpen = false; onOpenSettings()
-                        })
-                        DropdownMenuItem(text = { Text("Debug") }, onClick = {
-                            menuOpen = false; onOpenDebug()
-                        })
-                    }
-                },
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        val connected = state.serviceConnected
+        StatusPill(
+            text = if (connected) "All systems on" else "Service off",
+            dotColor = if (connected) Success else Danger,
+        )
+        Box {
+            Icon(
+                Icons.Filled.MoreVert,
+                contentDescription = "More",
+                tint = TextPrimary,
+                modifier = Modifier.clickableNoRipple(onClick = { menuOpen = true }).padding(8.dp),
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onEditPlans, containerColor = Accent, contentColor = OnAccent) {
-                Icon(Icons.Filled.Edit, contentDescription = "Edit plans")
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(text = { Text("Weekly report") }, onClick = { menuOpen = false; onReport() })
+                DropdownMenuItem(text = { Text("Settings") }, onClick = { menuOpen = false; onSettings() })
+                DropdownMenuItem(text = { Text("Debug") }, onClick = { menuOpen = false; onDebug() })
             }
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (state.permissions.values.any { !it } && state.permissions.isNotEmpty()) {
-                PermissionsWarning(onFixPermissions)
-            }
-            if (state.pendingChanges.isNotEmpty()) {
-                PendingBanner(state.pendingChanges.size, onOpenSettings)
-            }
-
-            TodayCard(state)
-            StreakCard(state)
-            TimeSavedCard(state)
-            SubstitutionCard(state)
         }
     }
 }
 
 @Composable
-private fun PermissionsWarning(onFix: () -> Unit) {
-    LifesaverCard(modifier = Modifier.clickableCard(onFix)) {
-        Text("SETUP INCOMPLETE", style = MaterialTheme.typography.bodySmall, color = Warning)
-        Spacer(Modifier.height(4.dp))
-        Text("Some permissions are missing", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Tap to finish granting access so Lifesaver can step in.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+private fun HeroRing(state: DashboardState) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        RingGauge(progress = state.todayReclaimFraction, diameter = 190.dp) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(TimeSaved.formatHm(state.todaySavedMs), style = MaterialTheme.typography.displaySmall)
+                Text("reclaimed today", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
+        }
     }
 }
 
 @Composable
-private fun TodayCard(state: DashboardState) {
-    LifesaverCard {
-        Text("TODAY", style = MaterialTheme.typography.bodySmall, color = Accent)
-        Spacer(Modifier.height(12.dp))
-        val enforcing = state.phase is Phase.Active
+private fun BudgetTiles(state: DashboardState) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         DetectionConfig.targets.forEach { target ->
-            BudgetRow(
-                label = target.label,
-                usageMs = state.todayUsageMsByApp[target.appId] ?: 0L,
-                budgetMs = state.settings.budgetMs(target.appId),
-                enforcing = enforcing,
-            )
-            Spacer(Modifier.height(12.dp))
-        }
-        Text(
-            "${state.remainingUnlocks} emergency unlocks left this week",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
-        )
-    }
-}
-
-@Composable
-private fun TimeSavedCard(state: DashboardState) {
-    LifesaverCard {
-        Text(TimeSaved.formatHm(state.weeklySavedMs), style = MaterialTheme.typography.displaySmall)
-        Text("SAVED THIS WEEK", style = MaterialTheme.typography.bodySmall, color = Accent)
-        if (state.weeklySavedMs > 0) {
-            Spacer(Modifier.height(4.dp))
-            Text(TimeSaved.tangible(state.weeklySavedMs), style = MaterialTheme.typography.bodyMedium)
+            val usage = state.todayUsageMsByApp[target.appId] ?: 0L
+            val budget = state.settings.budgetMs(target.appId)
+            val remainingMin = BudgetEngine.remainingMinutes(budget, usage, 0)
+            val fraction = BudgetEngine.remainingFraction(budget, usage, 0)
+            GlassTile(modifier = Modifier.weight(1f)) {
+                Text(target.label, style = MaterialTheme.typography.titleMedium, color = TextSecondary)
+                Spacer(Modifier.height(10.dp))
+                Box(contentAlignment = Alignment.Center) {
+                    RingGauge(
+                        progress = fraction,
+                        diameter = 84.dp,
+                        stroke = 6.dp,
+                        color = if (fraction < 0.25f) Danger else Accent,
+                    ) {
+                        Text("$remainingMin", style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("min left", style = MaterialTheme.typography.bodySmall, color = TextCaption)
+            }
         }
     }
 }
 
 @Composable
-private fun PendingBanner(count: Int, onOpen: () -> Unit) {
-    LifesaverCard(modifier = Modifier.clickableCard(onOpen)) {
-        Text("PENDING CHANGES", style = MaterialTheme.typography.bodySmall, color = Warning)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "$count setting change${if (count == 1) "" else "s"} waiting on the 24h rule. Tap to review.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-    }
-}
-
-@Composable
-private fun BudgetRow(label: String, usageMs: Long, budgetMs: Long, enforcing: Boolean) {
-    val remainingMin = BudgetEngine.remainingMinutes(budgetMs, usageMs, 0)
-    val fraction = BudgetEngine.remainingFraction(budgetMs, usageMs, 0)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-        val used = (usageMs / 60_000L).toInt()
-        Text(
-            if (enforcing) "$remainingMin MIN LEFT" else "$used MIN TODAY",
-            style = MaterialTheme.typography.bodyLarge,
-            color = TextSecondary,
-        )
-    }
-    Spacer(Modifier.height(6.dp))
-    BudgetBar(fraction = if (enforcing) fraction else 1f)
-}
-
-@Composable
-private fun StreakCard(state: DashboardState) {
-    LifesaverCard {
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("${state.streaks.current}", style = MaterialTheme.typography.displaySmall)
-            Text("DAY STREAK", style = MaterialTheme.typography.bodySmall, color = Accent)
+private fun StreakAndSaved(state: DashboardState) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        GlassTile(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.LocalFireDepartment, contentDescription = null, tint = Accent, modifier = Modifier.height(22.dp))
+                Text("${state.streaks.current}", style = MaterialTheme.typography.titleLarge)
+            }
+            Text("day streak", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text("longest ${state.streaks.longest}", style = MaterialTheme.typography.bodySmall, color = TextCaption)
         }
-        Text(
-            "Longest: ${state.streaks.longest}",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
-            textAlign = TextAlign.End,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        GlassTile(modifier = Modifier.weight(1f)) {
+            Text(TimeSaved.formatHm(state.weeklySavedMs), style = MaterialTheme.typography.titleLarge)
+            Text("saved this week", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            if (state.weeklySavedMs > 0) {
+                Text(TimeSaved.tangible(state.weeklySavedMs).lowercase(), style = MaterialTheme.typography.bodySmall, color = TextCaption)
+            }
+        }
     }
 }
 
 @Composable
 private fun SubstitutionCard(state: DashboardState) {
-    LifesaverCard {
-        Text("${state.substitutionPercent}%", style = MaterialTheme.typography.displaySmall)
-        Text(
-            "OF INTERVENTIONS REDIRECTED",
-            style = MaterialTheme.typography.bodySmall,
-            color = Accent,
-        )
-        Spacer(Modifier.height(8.dp))
-        BudgetBar(fraction = state.substitutionPercent / 100f)
+    GlassPanel {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                Text("${state.substitutionPercent}%", style = MaterialTheme.typography.titleLarge)
+                Text("of interventions redirected", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
+            Text(
+                "${state.remainingUnlocks} unlocks left",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextCaption,
+                textAlign = TextAlign.End,
+            )
+        }
     }
 }
 
-// Make a card tappable (ripple included by Modifier.clickable's default indication).
-private fun Modifier.clickableCard(onClick: () -> Unit): Modifier =
-    this.clickable(onClick = onClick)
+@Composable
+private fun ActionCard(title: String, body: String, onClick: () -> Unit) {
+    GlassPanel(modifier = Modifier.clickableNoRipple(onClick = onClick)) {
+        Text(title, style = MaterialTheme.typography.bodyLarge, color = Accent)
+        Spacer(Modifier.height(4.dp))
+        Text(body, style = MaterialTheme.typography.bodyMedium)
+    }
+}

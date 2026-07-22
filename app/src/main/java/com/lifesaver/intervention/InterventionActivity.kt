@@ -8,11 +8,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,9 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lifesaver.LifesaverApp
@@ -42,20 +42,22 @@ import com.lifesaver.data.RedirectApp
 import com.lifesaver.domain.DayKeys
 import com.lifesaver.domain.PlanMatcher
 import com.lifesaver.ui.components.AppIcon
-import com.lifesaver.ui.components.CountdownRing
-import com.lifesaver.ui.components.FlatButton
-import com.lifesaver.ui.components.RaisedButton
+import com.lifesaver.ui.components.glass.GlassBackground
+import com.lifesaver.ui.components.glass.GlassPanel
+import com.lifesaver.ui.components.glass.GlassPill
+import com.lifesaver.ui.components.glass.RingGauge
 import com.lifesaver.ui.theme.Accent
-import com.lifesaver.ui.theme.Background
 import com.lifesaver.ui.theme.LifesaverTheme
-import com.lifesaver.ui.theme.Surface as SurfaceColor
+import com.lifesaver.ui.theme.TextPrimary
+import com.lifesaver.ui.theme.TextSecondary
+import com.lifesaver.ui.theme.clickableNoRipple
 import kotlinx.coroutines.launch
 import java.time.LocalTime
 
 /**
- * The pre-feed intervention (PRD §3.2). Escalating breathing countdown, the user's own if-then
- * plan quoted back, redirect apps and micro-actions (§3.4), and a Continue button gated until the
- * countdown ends. Enters via the Intervention theme so it covers the target before the feed (§5).
+ * The pre-feed intervention (PRD §3.2, DESIGN v2 §7). A glass cockpit panel fades in over the
+ * (hidden) target app: hero ring countdown with breathing scale, the user's if-then plan quoted
+ * in Inter 600, and a glass dock of redirect apps + micro-action + a gated Continue pill.
  */
 class InterventionActivity : ComponentActivity() {
 
@@ -76,9 +78,10 @@ class InterventionActivity : ComponentActivity() {
 
         setContent {
             LifesaverTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = Background) {
+                GlassBackground(seed = 1, drift = false) {
                     InterventionContent(
                         label = label,
+                        openIndex = openIndex,
                         frictionSeconds = frictionSeconds,
                         minutesLeft = minutesLeft,
                         onContinue = { record("continued"); finish() },
@@ -140,6 +143,7 @@ private data class RedirectEntry(val app: RedirectApp, val icon: Drawable?)
 @Composable
 private fun InterventionContent(
     label: String,
+    openIndex: Int,
     frictionSeconds: Int,
     minutesLeft: Int,
     onContinue: () -> Unit,
@@ -159,6 +163,11 @@ private fun InterventionContent(
         return
     }
 
+    // Fade + rise-in entrance (§6).
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+    val enter by animateFloatAsState(if (visible) 1f else 0f, tween(350), label = "enter")
+
     var elapsed by remember { mutableStateOf(0f) }
     LaunchedEffect(Unit) {
         val total = frictionSeconds.coerceAtLeast(1) * 1000L
@@ -172,74 +181,76 @@ private fun InterventionContent(
     }
     val done = elapsed >= 1f
 
-    val planText = remember(settings) {
-        settings?.let { PlanMatcher.match(it.ifThenPlans, LocalTime.now().hour)?.text }
+    // Which plan to quote — rotate through the matching-context plans by open index (§7 cycling).
+    val planText = remember(settings, openIndex) {
+        val plans = settings?.ifThenPlans ?: emptyList()
+        val ctx = PlanMatcher.contextForHour(LocalTime.now().hour)
+        val matching = plans.filter { it.context == ctx }.ifEmpty { plans }
+        if (matching.isEmpty()) null else matching[(openIndex - 1).coerceAtLeast(0) % matching.size].text
     }
-    // Enumerate installed apps off the main thread; map to the chosen redirects with icons.
+
     val redirects by produceState(initialValue = emptyList<RedirectEntry>(), settings) {
         val s = settings ?: return@produceState
-        if (s.redirectApps.isEmpty()) {
-            value = emptyList(); return@produceState
-        }
+        if (s.redirectApps.isEmpty()) { value = emptyList(); return@produceState }
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val all = LifesaverApp.instance.container.installedApps.launchable()
             s.redirectApps.map { r -> RedirectEntry(r, all.firstOrNull { it.packageName == r.appId }?.icon) }
         }
     }
 
+    // Breathing scale on the ring, 4s cycle (§7).
     val transition = rememberInfiniteTransition(label = "breathe")
-    val pulse by transition.animateFloat(
-        initialValue = 0.7f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "pulse",
+    val breathe by transition.animateFloat(
+        initialValue = 0.94f, targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "breatheScale",
     )
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().alpha(enter).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height((16 + 24 * (1 - enter)).dp))
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CountdownRing(progress = elapsed) {
-                Text("BREATHE", style = MaterialTheme.typography.bodyLarge, color = Accent, modifier = Modifier.alpha(pulse))
+            RingGauge(progress = elapsed, diameter = 190.dp, modifier = Modifier.scale(breathe)) {
+                Text("Breathe", style = MaterialTheme.typography.titleMedium, color = Accent)
             }
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(28.dp))
             Text(
                 planText ?: "One breath before the feed decides for you.",
                 style = MaterialTheme.typography.headlineSmall,
+                color = TextPrimary,
                 textAlign = TextAlign.Center,
             )
         }
 
-        Surface(
-            color = SurfaceColor,
-            shape = RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp),
-            shadowElevation = 8.dp,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                if (redirects.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        redirects.forEach { entry ->
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable { onRedirect(entry.app) },
-                            ) {
-                                AppIcon(entry.icon)
-                                Text(entry.app.label, style = MaterialTheme.typography.bodySmall)
-                            }
+        GlassPanel(modifier = Modifier.fillMaxWidth()) {
+            if (redirects.isNotEmpty()) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    redirects.forEach { entry ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.clickableNoRipple(onClick = { onRedirect(entry.app) }),
+                        ) {
+                            AppIcon(entry.icon, size = 44.dp)
+                            Spacer(Modifier.height(4.dp))
+                            Text(entry.app.label, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
                 }
-                FlatButton("Micro-action", onClick = { showMicro = true })
-                Spacer(Modifier.height(4.dp))
-                FlatButton("Not now — close $label", onClick = onDismiss)
-                Spacer(Modifier.height(8.dp))
-                RaisedButton(
-                    text = if (done) "Continue — $minutesLeft min left" else "Wait…",
+                Spacer(Modifier.height(14.dp))
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                GlassPill("Micro-action", onClick = { showMicro = true }, modifier = Modifier.weight(1f))
+                GlassPill("Close", onClick = onDismiss, modifier = Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(modifier = Modifier.fillMaxWidth().alpha(if (done) 1f else 0.3f)) {
+                GlassPill(
+                    text = if (done) "Continue · $minutesLeft min left" else "Breathe · ${remainingSecs(elapsed, frictionSeconds)}s",
                     onClick = onContinue,
+                    primary = true,
                     enabled = done,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -247,3 +258,6 @@ private fun InterventionContent(
         }
     }
 }
+
+private fun remainingSecs(elapsed: Float, total: Int): Int =
+    ((1f - elapsed) * total).toInt().coerceAtLeast(0)

@@ -48,16 +48,24 @@ data class DashboardState(
     val pendingChanges: List<PendingChange> = emptyList(),
     val unlocksUsedThisWeek: Int = 0,
     val weeklySavedMs: Long = 0,
+    val todaySavedMs: Long = 0,
+    val todayBaselineMs: Long = 0,
+    val serviceConnected: Boolean = false,
 ) {
     val remainingUnlocks: Int get() = (MAX_UNLOCKS_PER_WEEK - unlocksUsedThisWeek).coerceAtLeast(0)
+    /** Fraction of today's baseline already reclaimed — the cockpit hero ring (§7). */
+    val todayReclaimFraction: Float
+        get() = if (todayBaselineMs <= 0) 0f else (todaySavedMs.toFloat() / todayBaselineMs).coerceIn(0f, 1f)
 }
+
+data class SavedSnapshot(val weeklyMs: Long = 0, val todayMs: Long = 0, val todayBaselineMs: Long = 0)
 
 private data class Aux(
     val perms: Map<Permissions.Kind, Boolean>,
     val usage: Map<String, Long>,
     val pending: List<PendingChange>,
     val unlocksUsed: Int,
-    val weeklySaved: Long,
+    val saved: SavedSnapshot,
 )
 
 const val MAX_UNLOCKS_PER_WEEK = 2
@@ -71,7 +79,7 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
 
     private val permissionsFlow = MutableStateFlow<Map<Permissions.Kind, Boolean>>(emptyMap())
     private val usageStatsFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
-    private val weeklySavedFlow = MutableStateFlow(0L)
+    private val savedFlow = MutableStateFlow(SavedSnapshot())
 
     val state: StateFlow<DashboardState> = combine(
         container.settings.settings,
@@ -83,9 +91,9 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
             usageStatsFlow,
             db.pendingChangeDao().pending(),
             db.unlockDao().usedThisWeekFlow(weekKey),
-            weeklySavedFlow,
-        ) { perms, usage, pending, unlocksUsed, weeklySaved ->
-            Aux(perms, usage, pending, unlocksUsed, weeklySaved)
+            savedFlow,
+        ) { perms, usage, pending, unlocksUsed, saved ->
+            Aux(perms, usage, pending, unlocksUsed, saved)
         },
     ) { settings, statuses, total, subs, aux ->
         DashboardState(
@@ -99,7 +107,10 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
             substitutionPercent = SubstitutionRate.percent(subs, total),
             pendingChanges = aux.pending,
             unlocksUsedThisWeek = aux.unlocksUsed,
-            weeklySavedMs = aux.weeklySaved,
+            weeklySavedMs = aux.saved.weeklyMs,
+            todaySavedMs = aux.saved.todayMs,
+            todayBaselineMs = aux.saved.todayBaselineMs,
+            serviceConnected = com.lifesaver.service.LifesaverAccessibilityService.isConnected,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardState())
 
@@ -120,27 +131,34 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshUsageStats() {
         viewModelScope.launch {
             usageStatsFlow.value = container.usageReader.todayByApp(DetectionConfig.targetPackages)
-            weeklySavedFlow.value = computeWeeklySaved()
+            savedFlow.value = computeSaved()
         }
     }
 
-    private suspend fun computeWeeklySaved(): Long {
+    private suspend fun computeSaved(): SavedSnapshot {
         val settings = container.settings.current()
         val today = LocalDate.now()
-        val weekStart = LocalDate.parse(DayKeys.weekKeyOf(today.toString()))
+        val todayKey = today.toString()
+        val weekStart = LocalDate.parse(DayKeys.weekKeyOf(todayKey))
         val baselines = db.baselineDao().all()
-        var saved = 0L
+        var weekly = 0L
+        var todaySaved = 0L
+        var todayBaseline = 0L
         var day = weekStart
         while (!day.isAfter(today)) {
             val dayKey = day.toString()
             settings.enabledApps.forEach { app ->
                 val actual = db.usageDao().get(dayKey, app)?.let { BudgetEngine.effectiveBurnMs(it) } ?: 0L
                 val base = BaselineModel.baselineForDay(baselines, app, dayKey)
-                saved += TimeSaved.savedMs(base, actual)
+                weekly += TimeSaved.savedMs(base, actual)
+                if (dayKey == todayKey) {
+                    todaySaved += TimeSaved.savedMs(base, actual)
+                    todayBaseline += base
+                }
             }
             day = day.plusDays(1)
         }
-        return saved
+        return SavedSnapshot(weeklyMs = weekly, todayMs = todaySaved, todayBaselineMs = todayBaseline)
     }
 
     fun completeOnboarding(plans: List<IfThenPlan>, redirects: List<RedirectApp>, budgets: Map<String, Int>) {

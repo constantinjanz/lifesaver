@@ -1,12 +1,14 @@
 package com.lifesaver.intervention
 
 import android.content.Intent
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,11 +18,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,19 +37,21 @@ import com.lifesaver.domain.DayKeys
 import com.lifesaver.domain.StreakCalculator
 import com.lifesaver.domain.TimeSaved
 import com.lifesaver.ui.components.AppIcon
-import com.lifesaver.ui.components.CountdownRing
-import com.lifesaver.ui.components.RaisedButton
-import com.lifesaver.ui.theme.Background
+import com.lifesaver.ui.components.glass.GlassBackground
+import com.lifesaver.ui.components.glass.GlassPanel
+import com.lifesaver.ui.components.glass.GlassPill
+import com.lifesaver.ui.components.glass.RingGauge
 import com.lifesaver.ui.theme.Danger
 import com.lifesaver.ui.theme.LifesaverTheme
+import com.lifesaver.ui.theme.TextPrimary
 import com.lifesaver.ui.theme.TextSecondary
+import com.lifesaver.ui.theme.clickableNoRipple
 import kotlinx.coroutines.launch
 
 /**
- * Budget-exhausted block screen (PRD §3.3). Same visual language as the intervention screen but a
- * static Deep Orange ring with a lock. Shows time saved today + streak. Redirect buttons (M4) and
- * the emergency unlock (M6) are layered on later. Block ends at midnight (the service simply stops
- * launching this once the new day's budget is available).
+ * Budget-exhausted block screen (PRD §3.3, DESIGN v2 §7). Same cockpit as the intervention but the
+ * ring is static danger-red with a lock; reclaimed + streak reassure; redirect dock stays; the
+ * emergency unlock is a small text pill opening a glass sheet for the typed reason.
  */
 class BlockActivity : ComponentActivity() {
 
@@ -55,7 +61,7 @@ class BlockActivity : ComponentActivity() {
         val label = intent.getStringExtra(EXTRA_APP_LABEL) ?: appId
         setContent {
             LifesaverTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = Background) {
+                GlassBackground(seed = 2, drift = false) {
                     BlockContent(
                         appId = appId,
                         label = label,
@@ -73,21 +79,17 @@ class BlockActivity : ComponentActivity() {
         finish()
     }
 
-    /** Emergency unlock (§3.5): 15 min lift, typed reason. Then drop straight into the app. */
     private fun activateUnlock(appId: String, reason: String) {
         val container = LifesaverApp.instance.container
         container.appScope.launch {
-            val weekKey = com.lifesaver.domain.DayKeys.weekKey(System.currentTimeMillis())
+            val weekKey = DayKeys.weekKey(System.currentTimeMillis())
             if (container.database.unlockDao().usedThisWeek(weekKey) >= 2) return@launch
             val now = System.currentTimeMillis()
             val expires = now + 15 * 60_000L
             container.database.unlockDao().insert(
                 com.lifesaver.data.EmergencyUnlock(
-                    ts = now,
-                    weekKey = weekKey,
-                    dayKey = com.lifesaver.domain.DayKeys.todayKey(),
-                    reason = reason.ifBlank { "(no reason given)" },
-                    expiresTs = expires,
+                    ts = now, weekKey = weekKey, dayKey = DayKeys.todayKey(),
+                    reason = reason.ifBlank { "(no reason given)" }, expiresTs = expires,
                 ),
             )
             container.settings.setPausedUntil(expires)
@@ -100,16 +102,12 @@ class BlockActivity : ComponentActivity() {
 
     private fun goHome() {
         startActivity(
-            Intent(Intent.ACTION_MAIN)
-                .addCategory(Intent.CATEGORY_HOME)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
         finish()
     }
 
-    override fun onBackPressed() {
-        goHome()
-    }
+    override fun onBackPressed() = goHome()
 
     companion object {
         const val EXTRA_APP_ID = "app_id"
@@ -118,7 +116,7 @@ class BlockActivity : ComponentActivity() {
 }
 
 private data class BlockStats(val savedToday: Long, val streak: Int)
-private data class BlockRedirect(val packageName: String, val label: String, val icon: android.graphics.drawable.Drawable?)
+private data class BlockRedirect(val packageName: String, val label: String, val icon: Drawable?)
 
 @Composable
 private fun BlockContent(
@@ -128,71 +126,71 @@ private fun BlockContent(
     onRedirect: (String) -> Unit,
     onUnlock: (String) -> Unit,
 ) {
-    val stats by produceState(BlockStats(0, 0), appId) {
-        value = loadBlockStats(appId)
-    }
-    val redirects by produceState(emptyList<BlockRedirect>()) {
-        value = loadBlockRedirects()
-    }
+    val stats by produceState(BlockStats(0, 0), appId) { value = loadBlockStats(appId) }
+    val redirects by produceState(emptyList<BlockRedirect>()) { value = loadBlockRedirects() }
     val remainingUnlocks by produceState(0) { value = loadRemainingUnlocks() }
-    var showUnlockDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showUnlockDialog by remember { mutableStateOf(false) }
+
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        CountdownRing(progress = 1f, color = Danger) {
+        RingGauge(progress = 1f, diameter = 190.dp, color = Danger, animateOnEntry = false) {
             Icon(Icons.Filled.Lock, contentDescription = null, tint = Danger)
         }
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(28.dp))
         Text(
-            "${label.uppercase()} IS DONE FOR TODAY",
+            "$label is done for today",
             style = MaterialTheme.typography.headlineSmall,
+            color = TextPrimary,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
         if (stats.savedToday > 0) {
             Text(
                 "You've reclaimed ${TimeSaved.formatHm(stats.savedToday)} today.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary,
-                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium, color = TextSecondary, textAlign = TextAlign.Center,
             )
         }
         Text(
-            "${stats.streak} day streak. It resets at midnight.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
-            textAlign = TextAlign.Center,
+            "${stats.streak} day streak. Resets at midnight.",
+            style = MaterialTheme.typography.bodyMedium, color = TextSecondary, textAlign = TextAlign.Center,
         )
+
         if (redirects.isNotEmpty()) {
             Spacer(Modifier.height(24.dp))
-            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                redirects.forEach { r ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.clickable { onRedirect(r.packageName) },
-                    ) {
-                        AppIcon(r.icon)
-                        Text(r.label, style = MaterialTheme.typography.bodySmall)
+            GlassPanel {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    redirects.forEach { r ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.clickableNoRipple(onClick = { onRedirect(r.packageName) }),
+                        ) {
+                            AppIcon(r.icon, size = 44.dp)
+                            Spacer(Modifier.height(4.dp))
+                            Text(r.label, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        }
                     }
                 }
             }
         }
-        Spacer(Modifier.height(32.dp))
-        RaisedButton("Close $label", onClick = onClose)
+
+        Spacer(Modifier.height(24.dp))
+        GlassPill("Close $label", onClick = onClose, primary = true)
         if (remainingUnlocks > 0) {
-            Spacer(Modifier.height(8.dp))
-            com.lifesaver.ui.components.FlatButton(
-                "Use emergency unlock ($remainingUnlocks left)",
-                onClick = { showUnlockDialog = true },
-                contentColor = Danger,
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Use emergency unlock · $remainingUnlocks left",
+                style = MaterialTheme.typography.bodySmall,
+                color = Danger,
+                modifier = Modifier.clickableNoRipple(onClick = { showUnlockDialog = true }).padding(8.dp),
             )
         }
     }
 
     if (showUnlockDialog) {
-        UnlockDialog(
+        UnlockSheet(
             onConfirm = { reason -> showUnlockDialog = false; onUnlock(reason) },
             onDismiss = { showUnlockDialog = false },
         )
@@ -200,51 +198,37 @@ private fun BlockContent(
 }
 
 @Composable
-private fun UnlockDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
-    var reason by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+private fun UnlockSheet(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+    var reason by remember { mutableStateOf("") }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        androidx.compose.material3.Surface(
-            color = com.lifesaver.ui.theme.Surface,
-            shape = androidx.compose.material3.MaterialTheme.shapes.medium,
-            shadowElevation = 24.dp,
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Emergency unlock", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
-                Text(
-                    "15 minutes, all restrictions lifted. This day won't count toward your streak.",
-                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                )
-                Spacer(Modifier.height(12.dp))
-                androidx.compose.material3.OutlinedTextField(
-                    value = reason,
-                    onValueChange = { reason = it },
-                    placeholder = { Text("Why do you need it?") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                )
-                Spacer(Modifier.height(8.dp))
-                androidx.compose.foundation.layout.Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    com.lifesaver.ui.components.FlatButton("Cancel", onClick = onDismiss)
-                    com.lifesaver.ui.components.FlatButton(
-                        "Unlock",
-                        onClick = { onConfirm(reason) },
-                        enabled = reason.isNotBlank(),
-                        contentColor = Danger,
-                    )
-                }
+        GlassPanel {
+            Text("Emergency unlock", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "15 minutes, all restrictions lifted. This day won't count toward your streak.",
+                style = MaterialTheme.typography.bodyMedium, color = TextSecondary,
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = reason, onValueChange = { reason = it },
+                placeholder = { Text("Why do you need it?") },
+                modifier = Modifier.fillMaxWidth(), minLines = 2,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                GlassPill("Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
+                GlassPill("Unlock", onClick = { onConfirm(reason) }, primary = true, enabled = reason.isNotBlank(), modifier = Modifier.weight(1f))
             }
         }
     }
 }
 
-private suspend fun loadRemainingUnlocks(): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-    val container = LifesaverApp.instance.container
-    val weekKey = com.lifesaver.domain.DayKeys.weekKey(System.currentTimeMillis())
-    (2 - container.database.unlockDao().usedThisWeek(weekKey)).coerceAtLeast(0)
+private suspend fun loadBlockStats(appId: String): BlockStats {
+    val db = LifesaverApp.instance.container.database
+    val dayKey = DayKeys.todayKey()
+    val actual = db.usageDao().get(dayKey, appId)?.let { BudgetEngine.effectiveBurnMs(it) } ?: 0L
+    val baseline = BaselineModel.baselineForDay(db.baselineDao().all(), appId, dayKey)
+    val streak = StreakCalculator.compute(db.statusDao().recent(400)).current
+    return BlockStats(TimeSaved.savedMs(baseline, actual), streak)
 }
 
 private suspend fun loadBlockRedirects(): List<BlockRedirect> =
@@ -256,11 +240,8 @@ private suspend fun loadBlockRedirects(): List<BlockRedirect> =
         chosen.map { r -> BlockRedirect(r.appId, r.label, all.firstOrNull { it.packageName == r.appId }?.icon) }
     }
 
-private suspend fun loadBlockStats(appId: String): BlockStats {
-    val db = LifesaverApp.instance.container.database
-    val dayKey = DayKeys.todayKey()
-    val actual = db.usageDao().get(dayKey, appId)?.let { BudgetEngine.effectiveBurnMs(it) } ?: 0L
-    val baseline = BaselineModel.baselineForDay(db.baselineDao().all(), appId, dayKey)
-    val streak = StreakCalculator.compute(db.statusDao().recent(400)).current
-    return BlockStats(TimeSaved.savedMs(baseline, actual), streak)
+private suspend fun loadRemainingUnlocks(): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val container = LifesaverApp.instance.container
+    val weekKey = DayKeys.weekKey(System.currentTimeMillis())
+    (2 - container.database.unlockDao().usedThisWeek(weekKey)).coerceAtLeast(0)
 }
