@@ -1,6 +1,7 @@
 package com.lifesaver.intervention
 
 import android.content.Intent
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,8 +11,10 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,24 +38,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lifesaver.LifesaverApp
 import com.lifesaver.data.InterventionEvent
+import com.lifesaver.data.RedirectApp
 import com.lifesaver.domain.DayKeys
 import com.lifesaver.domain.PlanMatcher
+import com.lifesaver.ui.components.AppIcon
 import com.lifesaver.ui.components.CountdownRing
 import com.lifesaver.ui.components.FlatButton
 import com.lifesaver.ui.components.RaisedButton
 import com.lifesaver.ui.theme.Accent
+import com.lifesaver.ui.theme.Background
 import com.lifesaver.ui.theme.LifesaverTheme
 import com.lifesaver.ui.theme.Surface as SurfaceColor
-import com.lifesaver.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalTime
 
 /**
  * The pre-feed intervention (PRD §3.2). Escalating breathing countdown, the user's own if-then
- * plan quoted back, and a Continue button gated until the countdown ends. Redirect targets and
- * micro-actions (§3.4/M4) attach to the bottom sheet. Enters via the Intervention theme so it
- * covers the target app before its feed renders (§5 race).
+ * plan quoted back, redirect apps and micro-actions (§3.4), and a Continue button gated until the
+ * countdown ends. Enters via the Intervention theme so it covers the target before the feed (§5).
  */
 class InterventionActivity : ComponentActivity() {
 
@@ -73,20 +76,28 @@ class InterventionActivity : ComponentActivity() {
 
         setContent {
             LifesaverTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = com.lifesaver.ui.theme.Background) {
+                Surface(modifier = Modifier.fillMaxSize(), color = Background) {
                     InterventionContent(
                         label = label,
                         frictionSeconds = frictionSeconds,
                         minutesLeft = minutesLeft,
                         onContinue = { record("continued"); finish() },
                         onDismiss = { record("dismissed"); goHome() },
+                        onRedirect = ::redirectTo,
+                        onMicroComplete = { record("micro_action"); goHome() },
                     )
                 }
             }
         }
     }
 
-    private fun record(action: String) {
+    private fun redirectTo(app: RedirectApp) {
+        record("redirect", redirectTarget = app.appId)
+        LifesaverApp.instance.container.installedApps.launchIntent(app.appId)?.let { startActivity(it) }
+        finish()
+    }
+
+    private fun record(action: String, redirectTarget: String? = null) {
         if (recorded) return
         recorded = true
         val event = InterventionEvent(
@@ -96,12 +107,11 @@ class InterventionActivity : ComponentActivity() {
             openIndex = openIndex,
             frictionSeconds = frictionSeconds,
             action = action,
+            redirectTarget = redirectTarget,
             latencyMs = System.currentTimeMillis() - triggeredAt,
         )
         val container = LifesaverApp.instance.container
-        container.appScope.launch {
-            container.database.interventionDao().insert(event)
-        }
+        container.appScope.launch { container.database.interventionDao().insert(event) }
     }
 
     private fun goHome() {
@@ -125,6 +135,8 @@ class InterventionActivity : ComponentActivity() {
     }
 }
 
+private data class RedirectEntry(val app: RedirectApp, val icon: Drawable?)
+
 @Composable
 private fun InterventionContent(
     label: String,
@@ -132,31 +144,52 @@ private fun InterventionContent(
     minutesLeft: Int,
     onContinue: () -> Unit,
     onDismiss: () -> Unit,
+    onRedirect: (RedirectApp) -> Unit,
+    onMicroComplete: () -> Unit,
 ) {
+    var showMicro by remember { mutableStateOf(false) }
+    val settings by produceState(initialValue = null as com.lifesaver.data.Settings?) {
+        value = LifesaverApp.instance.container.settings.current()
+    }
+    if (showMicro) {
+        MicroActionSheet(
+            goals = settings?.ifThenPlans?.map { it.text } ?: emptyList(),
+            onComplete = onMicroComplete,
+        )
+        return
+    }
+
     var elapsed by remember { mutableStateOf(0f) }
     LaunchedEffect(Unit) {
         val total = frictionSeconds.coerceAtLeast(1) * 1000L
-        val step = 50L
         var t = 0L
         while (t < total) {
-            delay(step)
-            t += step
+            kotlinx.coroutines.delay(50)
+            t += 50
             elapsed = (t.toFloat() / total).coerceIn(0f, 1f)
         }
         elapsed = 1f
     }
     val done = elapsed >= 1f
 
-    val plan by produceState<String?>(initialValue = null) {
-        val plans = LifesaverApp.instance.container.settings.current().ifThenPlans
-        value = PlanMatcher.match(plans, LocalTime.now().hour)?.text
+    val planText = remember(settings) {
+        settings?.let { PlanMatcher.match(it.ifThenPlans, LocalTime.now().hour)?.text }
+    }
+    // Enumerate installed apps off the main thread; map to the chosen redirects with icons.
+    val redirects by produceState(initialValue = emptyList<RedirectEntry>(), settings) {
+        val s = settings ?: return@produceState
+        if (s.redirectApps.isEmpty()) {
+            value = emptyList(); return@produceState
+        }
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val all = LifesaverApp.instance.container.installedApps.launchable()
+            s.redirectApps.map { r -> RedirectEntry(r, all.firstOrNull { it.packageName == r.appId }?.icon) }
+        }
     }
 
-    // Breathing pulse for the center hint.
     val transition = rememberInfiniteTransition(label = "breathe")
     val pulse by transition.animateFloat(
-        initialValue = 0.7f,
-        targetValue = 1f,
+        initialValue = 0.7f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Reverse),
         label = "pulse",
     )
@@ -169,16 +202,11 @@ private fun InterventionContent(
         Spacer(Modifier.height(8.dp))
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CountdownRing(progress = elapsed) {
-                Text(
-                    "BREATHE",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Accent,
-                    modifier = Modifier.alpha(pulse),
-                )
+                Text("BREATHE", style = MaterialTheme.typography.bodyLarge, color = Accent, modifier = Modifier.alpha(pulse))
             }
             Spacer(Modifier.height(32.dp))
             Text(
-                plan ?: "One breath before the feed decides for you.",
+                planText ?: "One breath before the feed decides for you.",
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
             )
@@ -191,6 +219,22 @@ private fun InterventionContent(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (redirects.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        redirects.forEach { entry ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { onRedirect(entry.app) },
+                            ) {
+                                AppIcon(entry.icon)
+                                Text(entry.app.label, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+                FlatButton("Micro-action", onClick = { showMicro = true })
+                Spacer(Modifier.height(4.dp))
                 FlatButton("Not now — close $label", onClick = onDismiss)
                 Spacer(Modifier.height(8.dp))
                 RaisedButton(

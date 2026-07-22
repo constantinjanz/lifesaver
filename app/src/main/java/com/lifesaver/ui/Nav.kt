@@ -28,7 +28,7 @@ object Routes {
 fun LifesaverNavHost(
     state: DashboardState,
     onGrantPermission: (Permissions.Kind) -> Unit,
-    onCompleteOnboarding: (Map<String, Int>) -> Unit,
+    onCompleteOnboarding: (List<com.lifesaver.data.IfThenPlan>, List<com.lifesaver.data.RedirectApp>, Map<String, Int>) -> Unit,
 ) {
     if (!state.hydrated) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -46,9 +46,11 @@ fun LifesaverNavHost(
             OnboardingScreen(
                 permissions = state.permissions,
                 initialBudgets = state.settings.budgetMinByApp,
+                initialPlans = state.settings.ifThenPlans,
+                initialRedirects = state.settings.redirectApps,
                 onGrant = onGrantPermission,
-                onFinish = { budgets ->
-                    onCompleteOnboarding(budgets)
+                onFinish = { plans, redirects, budgets ->
+                    onCompleteOnboarding(plans, redirects, budgets)
                     nav.navigate(Routes.DASHBOARD) {
                         popUpTo(Routes.ONBOARDING) { inclusive = true }
                     }
@@ -68,7 +70,7 @@ fun LifesaverNavHost(
             PlaceholderScreen("Settings", "Settings arrive with rewards & self-binding.", onBack = { nav.popBackStack() })
         }
         composable(Routes.PLANS) {
-            PlaceholderScreen("If-then plans", "The plan editor arrives with substitution.", onBack = { nav.popBackStack() })
+            com.lifesaver.ui.plans.PlansScreen(onBack = { nav.popBackStack() })
         }
         composable(Routes.DEBUG) {
             DebugScreen(permissions = state.permissions, onBack = { nav.popBackStack() })

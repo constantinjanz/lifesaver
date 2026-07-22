@@ -44,7 +44,14 @@ fun DebugScreen(permissions: Map<Permissions.Kind, Boolean>, onBack: () -> Unit)
             Line("accessibility.connected", LifesaverAccessibilityService.isConnected.toString())
             Line("last.foreground.pkg", LifesaverAccessibilityService.lastForegroundPackage ?: "—")
             Line("last.foreground.isTarget", LifesaverAccessibilityService.lastForegroundIsTarget.toString())
+            Line("surface.isFast(2x)", LifesaverAccessibilityService.lastSurfaceFast.toString())
             permissions.forEach { (k, v) -> Line("perm.${k.name.lowercase()}", v.toString()) }
+            Text(
+                "seen view ids (last target window):",
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            )
+            LifesaverAccessibilityService.lastSeenViewIds.forEach { Line("  ", it) }
         }
     }
 }

@@ -35,12 +35,8 @@ class MainActivity : ComponentActivity() {
                         onGrantPermission = { kind ->
                             startActivity(Permissions.settingsIntent(this@MainActivity, kind))
                         },
-                        onCompleteOnboarding = { budgets ->
-                            viewModel.completeOnboarding(
-                                plans = emptyList(),
-                                redirects = emptyList(),
-                                budgets = budgets,
-                            )
+                        onCompleteOnboarding = { plans, redirects, budgets ->
+                            viewModel.completeOnboarding(plans, redirects, budgets)
                         },
                     )
                 }

@@ -1,5 +1,6 @@
 package com.lifesaver.ui.onboarding
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,8 +16,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
@@ -33,29 +32,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.lifesaver.data.IfThenPlan
+import com.lifesaver.data.RedirectApp
 import com.lifesaver.detection.DetectionConfig
 import com.lifesaver.service.Permissions
 import com.lifesaver.ui.components.FlatButton
 import com.lifesaver.ui.components.LifesaverCard
 import com.lifesaver.ui.components.RaisedButton
+import com.lifesaver.ui.plans.PlanEditor
 import com.lifesaver.ui.theme.Accent
 import com.lifesaver.ui.theme.SurfaceRaised
-import com.lifesaver.ui.theme.TextDisabled
-import com.lifesaver.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
-private const val PAGE_COUNT = 5
-private const val PERMISSIONS_PAGE = 4
+private const val PAGE_COUNT = 6
+private const val PERMISSIONS_PAGE = 5
 
 @Composable
 fun OnboardingScreen(
     permissions: Map<Permissions.Kind, Boolean>,
     initialBudgets: Map<String, Int>,
+    initialPlans: List<IfThenPlan>,
+    initialRedirects: List<RedirectApp>,
     onGrant: (Permissions.Kind) -> Unit,
-    onFinish: (budgets: Map<String, Int>) -> Unit,
+    onFinish: (plans: List<IfThenPlan>, redirects: List<RedirectApp>, budgets: Map<String, Int>) -> Unit,
 ) {
     val pager = rememberPagerState(pageCount = { PAGE_COUNT })
     val scope = rememberCoroutineScope()
@@ -64,9 +64,10 @@ fun OnboardingScreen(
             DetectionConfig.targets.forEach { put(it.appId, initialBudgets[it.appId] ?: 30) }
         }
     }
+    var plans by remember { mutableStateOf(initialPlans) }
+    var redirects by remember { mutableStateOf(initialRedirects) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        // SKIP (top-right) jumps straight to permissions.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             if (pager.currentPage < PERMISSIONS_PAGE) {
                 FlatButton("Skip", onClick = { scope.launch { pager.animateScrollToPage(PERMISSIONS_PAGE) } })
@@ -87,8 +88,16 @@ fun OnboardingScreen(
                     "Substitute the scroll.",
                     "The urge is real — boredom, a break, a reset. Lifesaver hands you your own if-then plan and a one-tap jump to something better.",
                 )
-                3 -> BudgetPage(budgets)
-                4 -> PermissionsPage(permissions, onGrant)
+                3 -> Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 24.dp)) {
+                    PlanEditor(
+                        plans = plans,
+                        redirects = redirects,
+                        onPlansChange = { plans = it },
+                        onRedirectsChange = { redirects = it },
+                    )
+                }
+                4 -> BudgetPage(budgets)
+                5 -> PermissionsPage(permissions, onGrant)
             }
         }
 
@@ -96,11 +105,9 @@ fun OnboardingScreen(
         Spacer(Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             if (pager.currentPage < PERMISSIONS_PAGE) {
-                RaisedButton("Next", onClick = {
-                    scope.launch { pager.animateScrollToPage(pager.currentPage + 1) }
-                })
+                RaisedButton("Next", onClick = { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } })
             } else {
-                RaisedButton("Done", onClick = { onFinish(budgets.toMap()) })
+                RaisedButton("Done", onClick = { onFinish(plans, redirects, budgets.toMap()) })
             }
         }
     }
@@ -108,10 +115,7 @@ fun OnboardingScreen(
 
 @Composable
 private fun ConceptPage(title: String, body: String) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(top = 48.dp),
-        verticalArrangement = Arrangement.Top,
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(top = 48.dp)) {
         Text(title, style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
         Text(body, style = MaterialTheme.typography.bodyMedium)
@@ -120,9 +124,7 @@ private fun ConceptPage(title: String, body: String) {
 
 @Composable
 private fun BudgetPage(budgets: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Int>) {
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 32.dp),
-    ) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 32.dp)) {
         Text("Daily budgets", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
         Text(
@@ -150,23 +152,14 @@ private fun BudgetPage(budgets: androidx.compose.runtime.snapshots.SnapshotState
 }
 
 @Composable
-private fun PermissionsPage(
-    permissions: Map<Permissions.Kind, Boolean>,
-    onGrant: (Permissions.Kind) -> Unit,
-) {
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 32.dp),
-    ) {
+private fun PermissionsPage(permissions: Map<Permissions.Kind, Boolean>, onGrant: (Permissions.Kind) -> Unit) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 32.dp)) {
         Text("Grant access", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
-        Text(
-            "Four permissions, each with a clear job. Nothing leaves your phone.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        Text("Four permissions, each with a clear job. Nothing leaves your phone.", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
         permissionMeta.forEach { (kind, meta) ->
-            val granted = permissions[kind] == true
-            PermissionRow(meta.first, meta.second, granted) { onGrant(kind) }
+            PermissionRow(meta.first, meta.second, permissions[kind] == true) { onGrant(kind) }
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -192,16 +185,10 @@ private fun PermissionRow(title: String, why: String, granted: Boolean, onGrant:
 
 @Composable
 private fun PageDots(current: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-    ) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
         repeat(PAGE_COUNT) { i ->
             Box(
-                modifier = Modifier
-                    .padding(4.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
+                modifier = Modifier.padding(4.dp).size(8.dp).clip(CircleShape)
                     .background(if (i == current) Accent else SurfaceRaised),
             )
         }

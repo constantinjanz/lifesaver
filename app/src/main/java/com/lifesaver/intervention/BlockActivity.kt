@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +30,7 @@ import com.lifesaver.domain.BudgetEngine
 import com.lifesaver.domain.DayKeys
 import com.lifesaver.domain.StreakCalculator
 import com.lifesaver.domain.TimeSaved
+import com.lifesaver.ui.components.AppIcon
 import com.lifesaver.ui.components.CountdownRing
 import com.lifesaver.ui.components.RaisedButton
 import com.lifesaver.ui.theme.Background
@@ -51,10 +53,15 @@ class BlockActivity : ComponentActivity() {
         setContent {
             LifesaverTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Background) {
-                    BlockContent(appId = appId, label = label, onClose = ::goHome)
+                    BlockContent(appId = appId, label = label, onClose = ::goHome, onRedirect = ::redirectTo)
                 }
             }
         }
+    }
+
+    private fun redirectTo(packageName: String) {
+        LifesaverApp.instance.container.installedApps.launchIntent(packageName)?.let { startActivity(it) }
+        finish()
     }
 
     private fun goHome() {
@@ -77,11 +84,15 @@ class BlockActivity : ComponentActivity() {
 }
 
 private data class BlockStats(val savedToday: Long, val streak: Int)
+private data class BlockRedirect(val packageName: String, val label: String, val icon: android.graphics.drawable.Drawable?)
 
 @Composable
-private fun BlockContent(appId: String, label: String, onClose: () -> Unit) {
+private fun BlockContent(appId: String, label: String, onClose: () -> Unit, onRedirect: (String) -> Unit) {
     val stats by produceState(BlockStats(0, 0), appId) {
         value = loadBlockStats(appId)
+    }
+    val redirects by produceState(emptyList<BlockRedirect>()) {
+        value = loadBlockRedirects()
     }
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -112,10 +123,33 @@ private fun BlockContent(appId: String, label: String, onClose: () -> Unit) {
             color = TextSecondary,
             textAlign = TextAlign.Center,
         )
+        if (redirects.isNotEmpty()) {
+            Spacer(Modifier.height(24.dp))
+            androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                redirects.forEach { r ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable { onRedirect(r.packageName) },
+                    ) {
+                        AppIcon(r.icon)
+                        Text(r.label, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
         Spacer(Modifier.height(32.dp))
         RaisedButton("Close $label", onClick = onClose)
     }
 }
+
+private suspend fun loadBlockRedirects(): List<BlockRedirect> =
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val container = LifesaverApp.instance.container
+        val chosen = container.settings.current().redirectApps
+        if (chosen.isEmpty()) return@withContext emptyList()
+        val all = container.installedApps.launchable()
+        chosen.map { r -> BlockRedirect(r.appId, r.label, all.firstOrNull { it.packageName == r.appId }?.icon) }
+    }
 
 private suspend fun loadBlockStats(appId: String): BlockStats {
     val db = LifesaverApp.instance.container.database

@@ -43,9 +43,12 @@ data class Settings(
     val strictness: Strictness = Strictness.STANDARD,
     val ifThenPlans: List<IfThenPlan> = emptyList(),
     val redirectApps: List<RedirectApp> = emptyList(),
+    /** Epoch millis until which all friction/blocks are lifted by an active emergency unlock (§3.5). */
+    val pausedUntilMs: Long = 0,
 ) {
     fun budgetMin(appId: String): Int = budgetMinByApp[appId] ?: 30
     fun budgetMs(appId: String): Long = budgetMin(appId) * 60_000L
+    fun isPaused(nowMs: Long): Boolean = nowMs < pausedUntilMs
 
     companion object {
         fun plansToJson(plans: List<IfThenPlan>): String =

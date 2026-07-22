@@ -44,7 +44,8 @@ class LifesaverAccessibilityService : AccessibilityService() {
     private var sessionStartMs = 0L
     private var lastFlushMs = 0L
     private var sessionFastMs = 0L
-    @Volatile private var currentSurfaceFast = false // set by SurfaceDetector in M5
+    @Volatile private var currentSurfaceFast = false // set by SurfaceDetector on content changes
+    private var lastDetectMs = 0L
     /** True while our own intervention/block screen covers the target — don't accrue that time. */
     @Volatile private var ownUiForeground = false
     private var tickJob: Job? = null
@@ -65,9 +66,24 @@ class LifesaverAccessibilityService : AccessibilityService() {
         if (pkg == applicationContext.packageName) return
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> onForegroundPackage(pkg)
-            // M5: TYPE_WINDOW_CONTENT_CHANGED -> surface detection while in a target app.
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> onContentChanged(pkg)
             else -> Unit
         }
+    }
+
+    /** Debounced Reels/Shorts detection while inside a target app (§3.4). */
+    private fun onContentChanged(pkg: String) {
+        if (pkg != currentApp || ownUiForeground) return
+        val target = DetectionConfig.targetFor(pkg) ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastDetectMs < DETECT_DEBOUNCE_MS) return
+        lastDetectMs = now
+        val root = rootInActiveWindow ?: return
+        val result = SurfaceDetector.detect(root, target)
+        @Suppress("DEPRECATION") root.recycle()
+        currentSurfaceFast = result.isFast
+        lastSurfaceFast = result.isFast
+        lastSeenViewIds = result.seenViewIds
     }
 
     private fun onForegroundPackage(pkg: String) {
@@ -228,10 +244,13 @@ class LifesaverAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TICK_MS = 5_000L
+        private const val DETECT_DEBOUNCE_MS = 500L
         private const val BASELINE_DAYS = 2
 
         @Volatile var isConnected: Boolean = false; private set
         @Volatile var lastForegroundPackage: String? = null; private set
         @Volatile var lastForegroundIsTarget: Boolean = false; private set
+        @Volatile var lastSurfaceFast: Boolean = false; private set
+        @Volatile var lastSeenViewIds: List<String> = emptyList(); private set
     }
 }

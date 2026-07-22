@@ -37,6 +37,9 @@ class AppContainer(app: Application) {
     val notifications: com.lifesaver.service.Notifications by lazy {
         com.lifesaver.service.Notifications(app)
     }
+    val installedApps: com.lifesaver.service.InstalledApps by lazy {
+        com.lifesaver.service.InstalledApps(app)
+    }
 
     /** Long-lived scope for fire-and-forget writes that must survive an Activity finishing. */
     val appScope: kotlinx.coroutines.CoroutineScope =
