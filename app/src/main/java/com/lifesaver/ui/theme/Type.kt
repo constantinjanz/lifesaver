@@ -1,70 +1,65 @@
+@file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+
 package com.lifesaver.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.lifesaver.R
 
-// Roboto (system default) — Material 1 type scale (DESIGN.md §2).
-private val Roboto = FontFamily.Default
+// Inter (bundled variable font) — weights 400 and 600 only (DESIGN v2 §3).
+private val interRegular = Font(
+    R.font.inter_variable,
+    weight = FontWeight.Normal,
+    variationSettings = FontVariation.Settings(FontVariation.weight(400)),
+)
+private val interSemiBold = Font(
+    R.font.inter_variable,
+    weight = FontWeight.SemiBold,
+    variationSettings = FontVariation.Settings(FontVariation.weight(600)),
+)
+val Inter = FontFamily(interRegular, interSemiBold)
+
+// Tabular figures for the cockpit numerals.
+private const val TABULAR = "tnum"
 
 val LifesaverTypography = Typography(
-    // Display — big dashboard numbers (34sp).
+    // Hero numeral (central ring) — 44sp, 600, tabular, tight.
     displaySmall = TextStyle(
-        fontFamily = Roboto,
-        fontWeight = FontWeight.Normal,
-        fontSize = 34.sp,
-        color = TextPrimary,
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 44.sp,
+        letterSpacing = (-0.5).sp, fontFeatureSettings = TABULAR, color = TextPrimary,
     ),
-    // Headline — in-content screen headers (24sp).
+    // Screen headers inside content — 24sp 600.
     headlineSmall = TextStyle(
-        fontFamily = Roboto,
-        fontWeight = FontWeight.Normal,
-        fontSize = 24.sp,
-        color = TextPrimary,
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, color = TextPrimary,
     ),
-    // Title — toolbar / card titles (Medium 20sp).
+    // Tile numbers / toolbar title — 22sp 600 tabular.
     titleLarge = TextStyle(
-        fontFamily = Roboto,
-        fontWeight = FontWeight.Medium,
-        fontSize = 20.sp,
-        color = TextPrimary,
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 22.sp,
+        fontFeatureSettings = TABULAR, color = TextPrimary,
     ),
-    // Subheading — list items, section labels (16sp).
+    // List item / section label — 15sp 400.
     titleMedium = TextStyle(
-        fontFamily = Roboto,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        color = TextPrimary,
+        fontFamily = Inter, fontWeight = FontWeight.Normal, fontSize = 15.sp, color = TextPrimary,
     ),
-    // Body 1 — default body (14sp, secondary).
-    bodyMedium = TextStyle(
-        fontFamily = Roboto,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        color = TextSecondary,
-    ),
-    // Body 2 — emphasized body (Medium 14sp).
+    // Emphasized body — 15sp 600.
     bodyLarge = TextStyle(
-        fontFamily = Roboto,
-        fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        color = TextPrimary,
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary,
     ),
-    // Caption — timestamps, footnotes (12sp, secondary).
+    // Body — 15sp 400, secondary.
+    bodyMedium = TextStyle(
+        fontFamily = Inter, fontWeight = FontWeight.Normal, fontSize = 15.sp, color = TextSecondary,
+    ),
+    // Caption/hint — 12sp 400, sentence case (never caps).
     bodySmall = TextStyle(
-        fontFamily = Roboto,
-        fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
-        color = TextSecondary,
+        fontFamily = Inter, fontWeight = FontWeight.Normal, fontSize = 12.sp, color = TextCaption,
     ),
-    // BUTTON — Medium 14sp, letterSpacing 0.05em. ALL CAPS enforced in components.
+    // Button label — 15sp 600, sentence case (GlassPill does NOT uppercase).
     labelLarge = TextStyle(
-        fontFamily = Roboto,
-        fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        letterSpacing = 0.05.em,
+        fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary,
     ),
 )

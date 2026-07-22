@@ -76,6 +76,10 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
+    // Liquid Glass backdrop blur (DESIGN v2 §2). Blur renders on API 31+; below that the
+    // GlassPanel fallback (solid translucent) kicks in.
+    implementation("dev.chrisbanes.haze:haze:1.5.3")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")

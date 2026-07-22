@@ -192,7 +192,13 @@ v1.1 has one theme: the app stops being only a fence and becomes a mirror. It mu
 - Single daily impulse in the learned risk window (needs §9.1 data maturity).
 - Health Connect integration (Samsung Health): auto-import steps/workouts into the Sport & body area. Separate technical work package; 1-tap logging covers the need until then.
 
-### 9.9 v1.1 Build Order
+### 9.9 Additions (approved later, same release)
+- **Cycling intentions:** multiple if-then plans per context (min 1, max 5). The intervention screen rotates through them, least-recently-shown first, so no single plan wears out.
+- **Whole-phone screen time:** track ALL apps via UsageStatsManager (target apps keep the deep session profiling of §9.1). Patterns screen gains a total-screen-time view and top-5 apps by day.
+- **Pattern detection + template suggestions (no AI needed):** a recurrence check over the full tracking data: same app, same hour-of-day, same weekday, 3+ consecutive weeks → detected pattern. Each pattern renders a template-based suggestion ("Weekdays ~17:30, 20+ min YouTube. Commute? Try a podcast."). Patterns are dismissible ("Not true"), dismissed patterns are suppressed. Pure heuristics, no ML, no network.
+- Optional v1.2: one weekly LLM-generated report narrative via API call (data leaves device — off by default).
+
+### 9.10 v1.1 Build Order (§9.9 additions slot into steps 1 and 4)
 1. §9.1 session profiling + Patterns screen (everything else feeds on this data)
 2. §9.2 integrity layer
 3. §9.3 browser blocking
@@ -200,3 +206,31 @@ v1.1 has one theme: the app stops being only a fence and becomes a mirror. It mu
 5. §9.5 weekly report
 6. §9.6 streak insurance + §9.7 backup
 7. Regression pass: all v1 acceptance criteria (§7) still hold, plus: a tracking gap marks the day, browser Instagram burns budget, reinstall restores history.
+
+---
+
+## 10. v1.2 Backlog (approved, build after v1.1 is stable)
+
+Grounded in behavioral research: fresh-start effect (Dai/Milkman/Riis 2014), savoring/reflection, and the overjustification warning (rewards must stay informational, never transactional — no points, no "earn your scroll" mechanics, ever).
+
+### 10.1 Morning Shield
+- Instagram + YouTube (apps and browser) are hard-blocked for the first 30 minutes after the day's first unlock. No friction screen, a calm shield screen: time, weather-free, one line: "The morning is yours." Redirect icons available.
+- Duration configurable 15-60 min; loosening follows the 24h rule (§3.6). Emergency unlocks do NOT override the shield.
+- First-touch metric (§9.1) becomes the success measure: shield on → first-touch rate should collapse.
+
+### 10.2 Fresh-Start Mechanics
+- **Broken streak reframe:** when a streak breaks, never show loss language. Full-screen fresh-start moment: "New period starts now. Your record: 12 days." Old streak archived visibly (records list), new count starts immediately. No grayed-out shame states anywhere.
+- **Monday reset ritual:** weekly focus (§9.4) resets Monday morning with a 20-second picker (area + target), framed as a fresh period. This is the only push besides Sunday report; it replaces nothing, it opens the week.
+
+### 10.3 Evening One-Liner (savoring)
+- At the user's typical day-end (learned from usage data, default 22:30), one notification: "One line: what did you do instead today?" Free text, one tap to skip, never nags twice.
+- Entries collect in the weekly report as "What you actually did" — a growing list of real moments that the saved time bought. This is the emotional payoff of the entire app; treat the list with design care (glass card, generous type).
+
+### 10.4 Also in v1.2 (from earlier sections)
+- Single daily impulse in learned risk window (§9.8)
+- Health Connect / Samsung Health import (§9.8)
+- Optional weekly LLM report narrative, off by default (§9.9)
+
+### 10.5 v2 candidates (decide after 60 days of personal use)
+- **Deposit contract:** self-pledged money, missed weekly target = automatic donation. Strongest known commitment mechanism (loss aversion), but sharpest tool — only if intrinsic mechanics prove insufficient. Watch overjustification risk.
+- **Accountability partner:** Sunday report auto-shared with one chosen friend. Social commitment without money.

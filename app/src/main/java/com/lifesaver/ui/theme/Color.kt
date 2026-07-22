@@ -2,23 +2,48 @@ package com.lifesaver.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Fixed "2016 Material" dark palette (DESIGN.md §1). No dynamic color.
-val Background = Color(0xFF212121) // Grey 900 — window background
-val Surface = Color(0xFF303030) // Grey 850 — cards, sheets, dialogs
-val SurfaceRaised = Color(0xFF424242) // Grey 800 — menus, raised elements
-val AppBar = Color(0xFF212121)
+// "Liquid Glass Cockpit" palette (DESIGN v2). Text is always white-with-opacity so the glass
+// tint shows through — never pure gray hex.
 
-val Accent = Color(0xFF1DE9B6) // Teal A400
-val AccentDark = Color(0xFF00BFA5) // Teal A700
-val Warning = Color(0xFFFFC400) // Amber A400
-val Danger = Color(0xFFFF3D00) // Deep Orange A400
+// Background system (§1)
+val Base = Color(0xFF0A0A0F) // near-black window base
+val BlobOrange = Color(0xFFFF9500)
+val BlobViolet = Color(0xFF7B5CFF)
+val BlobBlue = Color(0xFF2E5CFF)
 
-val TextPrimary = Color(0xFFFFFFFF)
-val TextSecondary = Color(0xB3FFFFFF) // 70%
-val TextDisabled = Color(0x61FFFFFF) // 38%
-val Divider = Color(0x1FFFFFFF) // 12%
+// Glass material (§2)
+val GlassTint = Color(0x14FFFFFF) // white 8%
+val GlassTintStrong = Color(0x1AFFFFFF) // white 10% (smaller elements/pills)
+val GlassBorder = Color(0x2EFFFFFF) // white 18%
+val GlassLightEdge = Color(0x52FFFFFF) // white 32% top inner highlight
+val GlassTrack = Color(0x1FFFFFFF) // white 12% ring/track
+val GlassFallback = Color(0xEB16161D) // solid #16161D @ 92% when blur unavailable
 
-val StatusBar = Color(0xFF1B1B1B)
+// Data / accents (§4) — one accent per panel, data glows on neutral glass.
+val Accent = Color(0xFFFF9500) // orange — rings, active bars, risk, flame
+val Success = Color(0xFF30D158) // green — streak intact, goals met
+val Danger = Color(0xFFFF453A) // red-orange — budget out, block, integrity gaps
 
-// Content colors that read well on accent surfaces (dark ink on teal).
-val OnAccent = Color(0xFF212121)
+// Text (§3)
+val TextPrimary = Color(0xFFFFFFFF) // 100% — values
+val TextSecondary = Color(0x99FFFFFF) // 60% — labels
+val TextCaption = Color(0x66FFFFFF) // 40% — captions/hints
+
+// Bars / dividers
+val BarDefault = Color(0x24FFFFFF) // white 14%
+val HairlineDivider = Color(0x1AFFFFFF) // white 10%
+
+// Content color on accent-tinted glass
+val OnAccent = Color(0xFFFFFFFF)
+
+// --- Transitional aliases (old v1 names) so screens keep compiling during the glass migration.
+// These are progressively removed as each screen is restyled onto the glass components.
+val Background = Base
+val Surface = GlassFallback
+val SurfaceRaised = Color(0x24FFFFFF)
+val AppBar = Base
+val AccentDark = Accent
+val Warning = Accent
+val TextDisabled = TextCaption
+val Divider = HairlineDivider
+val StatusBar = Base

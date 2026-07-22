@@ -1,120 +1,97 @@
-# Lifesaver — Visual Redesign Spec: "2016 Material" Theme
+# Lifesaver — Visual Redesign Spec v2: "Liquid Glass Cockpit"
 
-**This is a complete restyle instruction for Claude Code. Functionality stays untouched. Read the whole file before writing code, then apply the theme app-wide. The target aesthetic is peak-2016 Android Material Design (Material 1), dark variant. Think Google apps and Instagram circa 2016: flat bold surfaces, real drop shadows, ink ripples, ALL CAPS buttons, sharp 2dp corners. No Material You, no dynamic color, no pill shapes, no tonal elevation. If a component looks like 2024 Material 3, it is wrong.**
+**This replaces the previous DESIGN.md entirely. Restyle instruction for Claude Code. Functionality stays untouched.**
+
+**Target aesthetic: Apple WWDC25 Liquid Glass, dark, combined with an instrument-panel layout. The app should feel like the cockpit of the user's phone: translucent frosted-glass panels floating over a dark ambient background, real backdrop blur, hairline light edges that catch light like polished glass, one central ring instrument. Reference points: iOS 26 Liquid Glass, visionOS panels, Apple Watch activity rings. If a surface looks like a flat gray card, it is wrong. If it looks like Material Design, it is very wrong.**
 
 ---
 
-## 1. Color System (fixed palette, no dynamic color)
+## 1. Background System (the light source behind the glass)
 
-Dark theme only. Disable Material 3 dynamic color entirely.
+Glass only reads as glass when something shines through it. Every screen sits on:
 
-| Token | Value | Usage |
-|---|---|---|
-| `background` | `#212121` (Grey 900) | Window background |
-| `surface` | `#303030` (Grey 850) | Cards, sheets, dialogs |
-| `surfaceRaised` | `#424242` (Grey 800) | Menus, raised elements |
-| `appBar` | `#212121` | Toolbar, same as background, separated by elevation shadow only |
-| `primary` / accent | `#1DE9B6` (Teal A400) | FAB, active states, progress, switches, links, countdown ring |
-| `primaryDark` | `#00BFA5` (Teal A700) | Pressed states, dark accents |
-| `warning` | `#FFC400` (Amber A400) | Budget below 25%, streak-at-risk states |
-| `danger` | `#FF3D00` (Deep Orange A400) | Budget exhausted, block screen accents, destructive actions |
-| `textPrimary` | `#FFFFFF` at 100% | Headlines, key numbers |
-| `textSecondary` | `#FFFFFF` at 70% | Body text |
-| `textDisabled` | `#FFFFFF` at 38% | Disabled, hints |
-| `divider` | `#FFFFFF` at 12% | 1dp hairline dividers |
+- **Base:** near-black `#0A0A0F`.
+- **Ambient color field:** 2-3 large, extremely soft radial color blobs, heavily dimmed, blurred to formlessness (think 200dp+ blur radius): one warm orange `#FF9500` at ~12% opacity, one violet `#7B5CFF` at ~10%, one deep blue `#2E5CFF` at ~8%. Positioned off-center, different per screen so screens feel distinct.
+- Blobs may drift very slowly (60s+ loop, subtle) on the dashboard only. Everywhere else static. Motion must never distract.
+- Never a pure flat background, never a photo.
 
-Rules:
-- Accent color is used sparingly and precisely: one FAB, active tab indicator, progress fills, the breathing ring. Never as large background fills except the intervention countdown ring.
-- Status bar: solid `#1B1B1B`, no translucency games. Navigation bar `#212121`.
-- No gradients anywhere. Flat fills only. 2016 Material is flat color + shadow, never gradient.
+## 2. Glass Material (the one material of the app)
 
-## 2. Typography (Roboto, Material 1 type scale)
+Every panel, card, dock, pill, and sheet is the same material:
 
-Font: Roboto only (system default is fine). No custom fonts, no variable font tricks.
+- **Backdrop blur:** 24dp blur of everything behind the panel. Implementation: use the **Haze library (chrisbanes/haze)** for Compose backdrop blur. Requires Android 12+, which the target device has.
+- **Tint:** white at 8% over the blurred backdrop (10% for smaller elements like pills).
+- **Border:** 1dp stroke, white at 18%.
+- **Top light edge:** additional 1dp inner highlight on the top edge only, white at 32%, fading out at the corners. This is the "polished glass catches light" signal and is mandatory on cards and sheets.
+- **Corner radius:** 24dp for cards and sheets, 16dp for small tiles, fully rounded (pill) for badges, buttons, and the dock.
+- **Shadow:** soft ambient shadow (black 35%, y-offset 8dp, blur 24dp) so panels float above the background.
+- **Fallback mode** (performance or blur unavailable): replace blur with solid `#16161D` at 92% opacity, keep tint/border/light edge identical. Must be a single flag in the theme, not scattered conditionals.
 
-| Style | Spec | Usage |
-|---|---|---|
-| Display | Roboto Regular 34sp, textPrimary | Big dashboard numbers (time saved, streak count) |
-| Headline | Roboto Regular 24sp | Screen headers inside content |
-| Title | Roboto Medium 20sp | Toolbar title, card titles |
-| Subheading | Roboto Regular 16sp | List items, section labels |
-| Body 1 | Roboto Regular 14sp, textSecondary | Default body |
-| Body 2 | Roboto Medium 14sp | Emphasized body |
-| Caption | Roboto Regular 12sp, textSecondary | Timestamps, footnotes |
-| BUTTON | Roboto Medium 14sp, ALL CAPS, letterSpacing 0.05em | Every button label |
+## 3. Typography
 
-ALL CAPS button text is mandatory and non-negotiable. It is the single strongest 2016 signal.
+- **Font: Inter** (bundle it), the closest free match to SF Pro. Weights 400 and 600 only.
+- Large numerals are the soul of a cockpit: time values use Inter 600, tabular figures, tight letter spacing.
+  - Hero number (central ring): 44sp
+  - Tile numbers: 22sp
+  - Body: 15sp regular
+  - Labels/captions: 12sp regular, sentence case, NEVER all caps
+- Text colors: white 100% (values), white 60% (labels), white 40% (captions/hints). Never pure gray hex values, always white with opacity so the glass tint shows through.
 
-## 3. Shape, Elevation, Components
+## 4. Color
 
-- **Corner radius: 2dp everywhere.** Cards, buttons, dialogs, sheets. Never more. FAB is the only circle.
-- **Real shadows, not tonal elevation:** cards rest at 2dp elevation, raised buttons 2dp resting / 8dp pressed, FAB 6dp resting / 12dp pressed, dialogs 24dp, app bar 4dp. In Compose use `shadowElevation`, keep surfaces the same color regardless of elevation (no tonalElevation, set it to 0).
-- **App bar:** classic 56dp toolbar, title left-aligned 16dp inset, Title style, overflow menu with three vertical dots. Casts a 4dp shadow onto scrolling content.
-- **FAB:** 56dp circle, accent background, dark icon (`#212121`), bottom-right, 16dp margins. Use on the dashboard for "Edit plans".
-- **Buttons:** raised buttons (accent bg, dark text, 2dp radius, shadow) for primary actions; flat/text buttons (accent text, no bg) for dialogs and secondary actions. Dialog buttons are ALWAYS flat, right-aligned, ALL CAPS ("CANCEL  CONFIRM").
-- **Ink ripples:** every tappable surface shows a ripple from the touch point. White 12% on dark surfaces, dark on accent surfaces.
-- **Switches/sliders:** Material 1 style, accent when on, grey when off.
-- **Progress:** linear determinate 4dp bars for budgets (accent fill → amber under 25% → deep orange at 0), grey 800 track. Circular indeterminate spinner in accent for loading.
-- **Dividers:** 1dp hairlines between list items. 2016 lists love dividers, use them.
-- **Snackbars:** dark grey `#323232`, white text, accent flat action button, bottom, 2dp radius. Use for confirmations ("SETTING QUEUED FOR 24H — UNDO").
-- **Lists:** 72dp two-line list items with 40dp circular icon/avatar left, 16dp keylines. Settings screen is a classic preference list with category subheaders in accent Caption style.
-- **Empty states:** centered flat illustration-free layout, Grey icon 56dp, Subheading text, flat accent button.
+- **Accent (instruments & data): orange `#FF9500`.** Used for: ring progress, active bars, risk highlights, streak flame. Sparingly — the cockpit is neutral glass, the data glows.
+- Success/positive: green `#30D158` (streak intact, goals met).
+- Danger: red-orange `#FF453A` (budget exhausted, block screen, integrity gaps).
+- Never more than one accent color per panel. No gradients on UI elements themselves (gradients live only in the ambient background).
 
-## 4. Iconography
+## 5. Components
 
-- Material icons, filled style (2016 had no outlined/rounded variants). 24dp, white 70% inactive, accent or white 100% active.
-- No emoji in UI. No custom illustrations. Icons carry the personality.
+- **Ring gauge (signature instrument):** circular progress ring, 8dp stroke, rounded caps, glass track (white 12%), accent fill, value + label centered inside. Sizes: hero 160dp (dashboard, intervention countdown), small 56dp (tiles).
+- **Glass card:** material from §2, padding 20dp.
+- **Status pill:** top of dashboard, pill glass, dot indicator + text: "All systems on" (green dot) / "Tracking gap today" (red dot, §9.2 integrity).
+- **List rows** (from style F): inside a glass card, rows separated by hairline dividers (white 10%), label left, value right. Use for app budgets, settings, report line items.
+- **Bar chart (risk hours):** slim rounded bars, white 14% default, accent for peak hours, no axes, no gridlines, caption below ("peak risk · 22:00").
+- **Buttons:** glass pills. Primary action = accent-tinted glass (orange 22% tint, orange 40% border, white text). Secondary = neutral glass. Text sentence case, never all caps.
+- **Floating dock:** bottom navigation as a detached glass pill (like the iOS 26 tab bar), 3 items: Cockpit, Patterns, Life. Icons only (outline style), active icon white 100% + tiny dot, inactive white 45%.
+- **Sheets/dialogs:** glass sheet sliding from bottom, 24dp top corners, drag handle (white 25%).
 
-## 5. Motion
+## 6. Motion
 
-- Standard 2016 curves: FastOutSlowIn for on-screen movement, LinearOutSlowIn for entering, FastOutLinearIn for exiting. Durations 195ms (small), 225ms (medium), 375ms (large/full-screen).
-- **Circular reveal** for the intervention screen: it expands from screen center as a circle when it intercepts an app open. This is THE signature 2016 transition, invest here.
-- Screen-to-screen: vertical slide-up + fade for detail screens, standard fade-through for tabs.
-- FAB presses scale 1.0 → 1.06 with shadow lift.
-- No spring/bounce physics anywhere. 2016 motion is confident and damped, never bouncy.
+- Physics-based springs (Compose `spring()`, medium damping), never linear. Press states scale to 0.97.
+- Panels enter with fade + 12dp upward drift, 350ms. The intervention screen enters as a soft blur-in: background app dims and blurs first, then the glass panel fades over it. This replaces the old circular reveal.
+- Ring progress animates with spring on screen entry.
+- No bounce excess, no parallax gimmicks. visionOS calm, not Android launcher flash.
 
-## 6. Screen-by-Screen Art Direction
+## 7. Screen-by-Screen
 
-### Dashboard
-- Toolbar "Lifesaver", overflow menu (Settings, Debug).
-- Content: vertical scroll of 2dp-radius cards on `#212121`, 8dp gaps, 16dp side margins:
-  1. **Today card:** two budget rows (Instagram, YouTube), each: app icon 40dp, app name Subheading, linear progress bar, right-aligned "12 MIN LEFT" in Body 2. Bar color shifts teal → amber → deep orange.
-  2. **Streak card:** Display-size number centered ("7"), Caption "DAY STREAK" beneath, small flame icon in accent. Longest streak as Caption bottom-right.
-  3. **Time saved card:** Display number ("6H 20M"), Caption "SAVED THIS WEEK", below it the tangible translation as Body 1 ("≈ 4 WORKOUTS").
-  4. **Substitution card:** percentage + thin progress bar, Caption "OF INTERVENTIONS REDIRECTED".
-  5. **Check-in sparkline card:** simple 2dp accent line chart, no axis decoration.
-- FAB bottom-right: edit icon → if-then plan editor.
+### Cockpit (dashboard)
+Top: status pill (integrity + service state). Center: hero ring = today's reclaimed time vs baseline, caption "reclaimed today". Below: two glass tiles side by side (Instagram / YouTube) each with small ring or slim bar for budget left. Then: risk-hours bar chart card. Then: "Life vs feed" card, two horizontal bars comparing logged life-hours vs target-app hours this week. Streak as a compact row card: flame icon, "7 days", freezes banked shown as small snowflake dots. Floating dock at bottom.
 
-### Intervention Screen
-- Full-bleed `#212121`, no toolbar, enters via circular reveal.
-- Center: 180dp countdown ring, 4dp accent stroke, sweeping clockwise; breathing hint text inside ("BREATHE") pulsing opacity 70%→100% synced to a 4s cycle.
-- Below ring: the user's if-then plan, Headline style, white, max 3 lines, quoted exactly as typed.
-- Bottom sheet area (surface `#303030`, 2dp top corners): row of redirect app icons (40dp, circular, labeled with Caption), a flat "MICRO-ACTION" button, and the gated raised button "CONTINUE — 12 MIN LEFT" which stays textDisabled until the countdown completes, then fills accent.
+### Intervention screen
+Background: the blurred, dimmed target app (the blur IS the intervention: the feed becomes unreadable). Center: hero ring as countdown, breathing scale animation (4s cycle), "Breathe" caption. Below the ring: the current if-then plan quoted in Inter 600 white, max 3 lines. Cycling intentions: rotate through the user's plans for the current context, one per intervention, least-recently-shown first. Bottom: glass dock with redirect app icons (44dp, real app icons), a "Micro-action" glass pill, and the gated "Continue · 12 min left" pill which stays at 30% opacity until the countdown completes.
 
-### Block Screen (budget exhausted)
-- Same layout language as intervention, but ring is static Deep Orange A400, icon lock inside.
-- Headline: "INSTAGRAM IS DONE FOR TODAY". Body: time saved today + streak.
-- Redirect icons stay. Emergency unlock as a flat deep-orange text button at the very bottom, small: "USE EMERGENCY UNLOCK (1 LEFT)" → confirmation dialog with flat buttons.
+### Block screen
+Same layout, ring static in danger red at 100%, lock glyph inside. Title: "Instagram is done for today". Below: reclaimed time + streak as reassurance, redirect dock stays. Emergency unlock as small text button at the very bottom ("Use emergency unlock · 1 left"), opens a glass sheet asking for the typed reason.
 
-### Onboarding
-- Classic 2016 viewpager: full-screen colored feel but keep dark surfaces, one concept per page, Headline + Body 1, dot page indicator (accent active dot), flat "SKIP" top-right, raised "NEXT" bottom-right.
-- Permission pages: 56dp filled icon in accent, live status as a checkmark chip, raised "GRANT" button per permission.
+### Patterns
+Hour x weekday heatmap as a grid of rounded cells (white opacity scale, accent for top cells). Cards for: Reels/Shorts share, post-midnight minutes, first-touch flag, detected recurring patterns with their template suggestions ("Weekdays ~17:30, 20+ min YouTube. Commute? Try a podcast.") — each pattern card has a dismiss ("Not true") that suppresses that pattern.
 
-### Settings
-- Classic preference list: category subheaders ("BUDGETS", "FRICTION", "BINDING") in accent Caption ALL CAPS, two-line items, dividers, switches right-aligned.
-- Pending 24h changes: amber-tinted list item with clock icon and Caption countdown ("ACTIVE TOMORROW 18:32 — CANCEL").
+### Weekly report
+One scrollable glass sheet, section per §9.5 PRD, every number in instrument style. Check-in sliders at the end as glass sliders. Dense, factual, zero cheerleading.
 
-### Weekly Check-in
-- Dialog-style card, 24dp elevation, three labeled sliders, flat "DONE" button. Under 30 seconds to complete, no decoration.
+### Life log
+1-tap logging: four glass tiles (Projects, Sport, People, Learning), tap = logged with spring pulse + optional minutes stepper. Weekly focus shown as a ring (2 of 3 evenings).
 
-### Debug Screen
-- Deliberately unstyled utilitarian list, monospace values allowed. This screen is exempt from the design system.
+### Settings & onboarding
+Settings: glass card list rows, pending 24h changes as amber-tinted rows with countdown. Onboarding: one glass panel per page over the ambient background, page dots, permission pages with live status checkmarks.
 
-## 7. Implementation Notes (Compose)
+### Debug screen
+Exempt from the design system. Plain utilitarian list, monospace allowed.
 
-- Build one `LifesaverTheme` wrapping `MaterialTheme` with the custom dark `ColorScheme`, custom `Typography` mapping the table above, and `Shapes(small/medium/large = RoundedCornerShape(2.dp))`.
-- Set `tonalElevation = 0.dp` on all surfaces; express depth exclusively via `shadowElevation`.
-- Kill dynamic color: never call `dynamicDarkColorScheme`.
-- Create small reusable components first: `RaisedButton`, `FlatButton` (ALL CAPS enforced in the component, callers pass normal text), `LifesaverCard`, `BudgetBar`, `CountdownRing`. Then restyle screens using only these.
-- Every button label passes through the components so ALL CAPS can never be forgotten.
-- Verify: build the APK, then screenshot each screen (dashboard, intervention, block, settings, onboarding page 1) and check against this spec before declaring done.
+## 8. Implementation Notes (Compose)
+
+- One `LifesaverTheme` + one `GlassPanel` composable implementing §2 exactly (blur via Haze, tint, border, top light edge, radius, shadow, fallback flag). EVERY surface in the app uses `GlassPanel` or its pill/tile variants. No raw `Card`, no `Surface` with Material defaults anywhere.
+- `RingGauge`, `GlassPill`, `GlassRow`, `RiskBars`, `AmbientBackground` as the other core components. Build all six first, then restyle screens using only these.
+- Kill all Material color/elevation defaults: no dynamicColorScheme, tonalElevation 0 everywhere, Material components only as behavior shells, never for their looks.
+- Performance: blur is expensive. Reuse one Haze state per screen, never nest blurred panels inside blurred panels, test scrolling at 60fps on the device. If frames drop, the fallback mode (§2) must be togglable in the debug screen for A/B checking.
+- Verification: build, screenshot every screen (cockpit, intervention, block, patterns, life log, report, settings, onboarding p1), check each against this file before declaring done. Specifically check: light edge visible on top of cards, background blobs shine through panels, no flat gray surfaces anywhere, no all-caps labels.
