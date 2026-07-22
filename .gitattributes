@@ -1,0 +1,8 @@
+# Normalize line endings; keep binaries intact.
+* text=auto eol=lf
+*.jar binary
+*.apk binary
+*.png binary
+*.keystore binary
+gradlew text eol=lf
+*.bat text eol=crlf

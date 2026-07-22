@@ -1,50 +1,237 @@
 package com.lifesaver.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
+import com.lifesaver.LifesaverApp
+import com.lifesaver.data.LifesaverDatabase
+import com.lifesaver.data.Settings
 import com.lifesaver.detection.DetectionConfig
+import com.lifesaver.domain.DayKeys
+import com.lifesaver.domain.FrictionLadder
+import com.lifesaver.intervention.BlockActivity
+import com.lifesaver.intervention.InterventionActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
- * The interception engine. M1: registers and tracks connection state + last foreground package
- * (so the permission is real and the debug screen has something to show). Foreground accounting
- * (M2), intervention/block dispatch (M3), and Reels/Shorts surface detection (M5) are layered on
- * in later milestones. Detection is driven entirely by [DetectionConfig] (§3.4).
+ * The interception engine (PRD §3.2–§3.4). Detects when a target app comes to the foreground,
+ * accounts foreground time toward the daily budget (2x on Reels/Shorts), shows the block screen
+ * when the budget is exhausted, and (M3) the intervention pause before the feed. All markers come
+ * from [DetectionConfig]. During the 2-day baseline it observes only — no pauses, no blocks (§3.1).
  */
 class LifesaverAccessibilityService : AccessibilityService() {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val main = Handler(Looper.getMainLooper())
+    private lateinit var accountant: ForegroundAccountant
+    private lateinit var notifications: Notifications
+    private lateinit var db: LifesaverDatabase
+
+    // Live config snapshot, refreshed from settings.
+    @Volatile private var settings: Settings = Settings()
+
+    // Current foreground session state.
+    @Volatile private var currentApp: String? = null
+    private var sessionStartMs = 0L
+    private var lastFlushMs = 0L
+    private var sessionFastMs = 0L
+    @Volatile private var currentSurfaceFast = false // set by SurfaceDetector in M5
+    /** True while our own intervention/block screen covers the target — don't accrue that time. */
+    @Volatile private var ownUiForeground = false
+    private var tickJob: Job? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         isConnected = true
+        val container = LifesaverApp.instance.container
+        db = container.database
+        accountant = ForegroundAccountant(db)
+        notifications = container.notifications
+        scope.launch { container.settings.settings.collect { settings = it } }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        event ?: return
         val pkg = event.packageName?.toString() ?: return
         if (pkg == applicationContext.packageName) return
-        lastForegroundPackage = pkg
-        lastForegroundIsTarget = DetectionConfig.isTarget(pkg)
-        // M2/M3/M5 enforcement is attached here.
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> onForegroundPackage(pkg)
+            // M5: TYPE_WINDOW_CONTENT_CHANGED -> surface detection while in a target app.
+            else -> Unit
+        }
     }
+
+    private fun onForegroundPackage(pkg: String) {
+        // A non-self app is on top, so our overlay is no longer covering anything.
+        ownUiForeground = false
+        lastForegroundPackage = pkg
+        val isTarget = DetectionConfig.isTarget(pkg) && pkg in settings.enabledApps
+        lastForegroundIsTarget = isTarget
+        if (pkg == currentApp) return
+
+        val now = System.currentTimeMillis()
+        endCurrentSession(now)
+
+        if (isTarget) {
+            startSession(pkg, now)
+            if (enforcing()) decideOnEntry(pkg)
+        }
+    }
+
+    // --- Session lifecycle ---
+
+    private fun startSession(pkg: String, now: Long) {
+        currentApp = pkg
+        sessionStartMs = now
+        lastFlushMs = now
+        sessionFastMs = 0
+        currentSurfaceFast = false
+        startTicker()
+    }
+
+    private fun endCurrentSession(now: Long) {
+        val app = currentApp ?: return
+        flush(now)
+        val start = sessionStartMs
+        val fast = sessionFastMs
+        scope.launch { accountant.recordSession(app, start, now, fast) }
+        notifications.cancelUsage(notifId(app))
+        currentApp = null
+        stopTicker()
+    }
+
+    private fun startTicker() {
+        stopTicker()
+        tickJob = scope.launch {
+            while (isActive && currentApp != null) {
+                delay(TICK_MS)
+                flush(System.currentTimeMillis())
+            }
+        }
+    }
+
+    private fun stopTicker() {
+        tickJob?.cancel()
+        tickJob = null
+    }
+
+    /** Persist the slice since the last flush and react to budget state. */
+    private fun flush(now: Long) {
+        val app = currentApp ?: return
+        // While our pause/block screen covers the app, the user isn't in it — don't burn budget.
+        if (ownUiForeground) {
+            lastFlushMs = now
+            return
+        }
+        val delta = now - lastFlushMs
+        if (delta <= 0) return
+        val fast = if (currentSurfaceFast) delta else 0L
+        sessionFastMs += fast
+        lastFlushMs = now
+        val dayKey = DayKeys.todayKey()
+        val budget = settings.budgetMs(app)
+        val enforce = enforcing()
+        scope.launch {
+            val a = accountant.accrue(app, dayKey, delta, fast, budget)
+            if (enforce) {
+                if (a.exhausted) {
+                    postBlock(app)
+                } else {
+                    notifications.showUsage(
+                        notifId(app),
+                        notifications.buildUsageNotification(
+                            DetectionConfig.targetFor(app)?.label ?: app,
+                            (a.remainingMs / 60_000L).toInt(),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    // --- Enforcement decisions ---
+
+    private fun decideOnEntry(app: String) {
+        val dayKey = DayKeys.todayKey()
+        val budget = settings.budgetMs(app)
+        scope.launch {
+            val eff = accountant.effectiveToday(app, dayKey)
+            if (budget in 1..eff) {
+                postBlock(app)
+            } else {
+                val openIndex = db.interventionDao().openCountToday(app, dayKey) + 1
+                val friction = FrictionLadder.pauseSeconds(openIndex, settings.strictness)
+                val minutesLeft = ((budget - eff) / 60_000L).toInt().coerceAtLeast(0)
+                postIntervention(app, openIndex, friction, minutesLeft)
+            }
+        }
+    }
+
+    private fun postIntervention(app: String, openIndex: Int, friction: Int, minutesLeft: Int) {
+        ownUiForeground = true
+        main.post {
+            val label = DetectionConfig.targetFor(app)?.label ?: app
+            val intent = Intent(this, InterventionActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                .putExtra(InterventionActivity.EXTRA_APP_ID, app)
+                .putExtra(InterventionActivity.EXTRA_APP_LABEL, label)
+                .putExtra(InterventionActivity.EXTRA_OPEN_INDEX, openIndex)
+                .putExtra(InterventionActivity.EXTRA_FRICTION_SECONDS, friction)
+                .putExtra(InterventionActivity.EXTRA_MINUTES_LEFT, minutesLeft)
+            startActivity(intent)
+        }
+    }
+
+    private fun postBlock(app: String) {
+        ownUiForeground = true
+        main.post {
+            val label = DetectionConfig.targetFor(app)?.label ?: app
+            val intent = Intent(this, BlockActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                .putExtra(BlockActivity.EXTRA_APP_ID, app)
+                .putExtra(BlockActivity.EXTRA_APP_LABEL, label)
+            startActivity(intent)
+        }
+    }
+
+    // --- Phase helpers ---
+
+    private fun enforcing(): Boolean = !baselineActive() && settings.onboardingComplete
+
+    private fun baselineActive(): Boolean {
+        if (!settings.onboardingComplete) return true
+        val start = settings.baselineStartEpochDay
+        if (start < 0) return true
+        val today = java.time.LocalDate.now().toEpochDay()
+        return (today - start) < BASELINE_DAYS
+    }
+
+    private fun notifId(app: String) = Notifications.USAGE_NOTIFICATION_ID_BASE + app.hashCode()
 
     override fun onInterrupt() = Unit
 
-    override fun onUnbind(intent: android.content.Intent?): Boolean {
+    override fun onUnbind(intent: Intent?): Boolean {
         isConnected = false
+        endCurrentSession(System.currentTimeMillis())
+        scope.cancel()
         return super.onUnbind(intent)
     }
 
     companion object {
-        /** Live connection state — a stronger signal than the settings-string check (§9.2 seed). */
-        @Volatile
-        var isConnected: Boolean = false
-            private set
+        private const val TICK_MS = 5_000L
+        private const val BASELINE_DAYS = 2
 
-        @Volatile
-        var lastForegroundPackage: String? = null
-            private set
-
-        @Volatile
-        var lastForegroundIsTarget: Boolean = false
-            private set
+        @Volatile var isConnected: Boolean = false; private set
+        @Volatile var lastForegroundPackage: String? = null; private set
+        @Volatile var lastForegroundIsTarget: Boolean = false; private set
     }
 }

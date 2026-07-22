@@ -19,6 +19,8 @@ class LifesaverApp : Application() {
         instance = this
         container = AppContainer(this)
         container.notifications.ensureChannels()
+        // Anchor daily rollover to local midnight (streak finalize + baseline refine).
+        com.lifesaver.work.MidnightResetWorker.scheduleNext(this)
     }
 
     companion object {
@@ -35,4 +37,10 @@ class AppContainer(app: Application) {
     val notifications: com.lifesaver.service.Notifications by lazy {
         com.lifesaver.service.Notifications(app)
     }
+
+    /** Long-lived scope for fire-and-forget writes that must survive an Activity finishing. */
+    val appScope: kotlinx.coroutines.CoroutineScope =
+        kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default,
+        )
 }
