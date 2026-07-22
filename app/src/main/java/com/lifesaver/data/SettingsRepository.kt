@@ -30,6 +30,12 @@ class SettingsRepository(private val context: Context) {
         val PLANS = stringPreferencesKey("if_then_plans_json")
         val REDIRECTS = stringPreferencesKey("redirect_apps_json")
         val PAUSED_UNTIL = longPreferencesKey("paused_until_ms")
+        val FOCUS_AREA = stringPreferencesKey("weekly_focus_area")
+        val FOCUS_TARGET = androidx.datastore.preferences.core.intPreferencesKey("weekly_focus_target")
+        val FOCUS_WEEK = stringPreferencesKey("weekly_focus_week")
+        val FREEZES = androidx.datastore.preferences.core.intPreferencesKey("banked_freezes")
+        val DISMISSED = stringSetPreferencesKey("dismissed_patterns")
+        val LAST_ALIVE = longPreferencesKey("last_alive_ms")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -45,6 +51,11 @@ class SettingsRepository(private val context: Context) {
             ifThenPlans = Settings.plansFromJson(p[Keys.PLANS]),
             redirectApps = Settings.redirectsFromJson(p[Keys.REDIRECTS]),
             pausedUntilMs = p[Keys.PAUSED_UNTIL] ?: 0,
+            weeklyFocusArea = p[Keys.FOCUS_AREA],
+            weeklyFocusTarget = p[Keys.FOCUS_TARGET] ?: 0,
+            weeklyFocusWeekKey = p[Keys.FOCUS_WEEK] ?: "",
+            bankedFreezes = p[Keys.FREEZES] ?: 0,
+            dismissedPatterns = p[Keys.DISMISSED] ?: emptySet(),
         )
     }
 
@@ -73,6 +84,22 @@ class SettingsRepository(private val context: Context) {
         edit { it[Keys.REDIRECTS] = Settings.redirectsToJson(apps) }
 
     suspend fun setPausedUntil(epochMs: Long) = edit { it[Keys.PAUSED_UNTIL] = epochMs }
+
+    suspend fun setWeeklyFocus(area: String, target: Int, weekKey: String) = edit {
+        it[Keys.FOCUS_AREA] = area
+        it[Keys.FOCUS_TARGET] = target
+        it[Keys.FOCUS_WEEK] = weekKey
+    }
+
+    suspend fun setBankedFreezes(count: Int) = edit { it[Keys.FREEZES] = count.coerceIn(0, 2) }
+
+    suspend fun dismissPattern(id: String) = edit {
+        it[Keys.DISMISSED] = (it[Keys.DISMISSED] ?: emptySet()) + id
+    }
+
+    suspend fun setLastAlive(epochMs: Long) = edit { it[Keys.LAST_ALIVE] = epochMs }
+
+    suspend fun lastAlive(): Long = context.dataStore.data.map { it[Keys.LAST_ALIVE] ?: 0L }.first()
 
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         context.dataStore.edit(block)

@@ -47,6 +47,39 @@ interface UsageDao {
 
     @Query("SELECT * FROM usage_sessions WHERE dayKey = :dayKey ORDER BY startTs")
     suspend fun sessionsForDay(dayKey: String): List<UsageSession>
+
+    @Query("SELECT * FROM usage_sessions WHERE startTs >= :fromMs ORDER BY startTs")
+    suspend fun sessionsSince(fromMs: Long): List<UsageSession>
+
+    @Query("SELECT * FROM daily_usage WHERE dayKey >= :fromDayKey")
+    suspend fun usageSince(fromDayKey: String): List<DailyUsage>
+}
+
+@Dao
+interface LifeDao {
+    @Insert
+    suspend fun insert(log: LifeLog): Long
+
+    @Query("SELECT * FROM life_logs WHERE dayKey >= :fromDayKey ORDER BY ts DESC")
+    fun since(fromDayKey: String): Flow<List<LifeLog>>
+
+    @Query("SELECT COALESCE(SUM(minutes),0) FROM life_logs WHERE dayKey >= :fromDayKey")
+    suspend fun totalMinutesSince(fromDayKey: String): Int
+
+    @Query("SELECT * FROM life_logs WHERE dayKey >= :fromDayKey")
+    suspend fun listSince(fromDayKey: String): List<LifeLog>
+}
+
+@Dao
+interface TrackingGapDao {
+    @Insert
+    suspend fun insert(gap: TrackingGap): Long
+
+    @Query("SELECT COALESCE(SUM(durationMs),0) FROM tracking_gaps WHERE dayKey = :dayKey")
+    suspend fun gapMsForDay(dayKey: String): Long
+
+    @Query("SELECT * FROM tracking_gaps WHERE dayKey >= :fromDayKey ORDER BY startTs DESC")
+    suspend fun since(fromDayKey: String): List<TrackingGap>
 }
 
 @Dao

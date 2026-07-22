@@ -121,3 +121,23 @@ data class UsageSession(
     val precedingApp: String? = null,
     val triggerClass: String? = null,
 )
+
+/** 1-tap life activity log (§9.4). area ∈ projects | sport | people | learning. */
+@Entity(tableName = "life_logs", indices = [Index("dayKey"), Index("area")])
+data class LifeLog(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val area: String,
+    val dayKey: String,
+    val minutes: Int,
+    val ts: Long,
+)
+
+/** A period where tracking was off (service disabled/died) — integrity layer (§9.2). */
+@Entity(tableName = "tracking_gaps", indices = [Index("dayKey")])
+data class TrackingGap(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startTs: Long,
+    val endTs: Long,
+    val dayKey: String,
+    val durationMs: Long,
+)

@@ -15,8 +15,10 @@ import androidx.room.RoomDatabase
         Checkin::class,
         Baseline::class,
         UsageSession::class,
+        LifeLog::class,
+        TrackingGap::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class LifesaverDatabase : RoomDatabase() {
@@ -27,6 +29,8 @@ abstract class LifesaverDatabase : RoomDatabase() {
     abstract fun pendingChangeDao(): PendingChangeDao
     abstract fun checkinDao(): CheckinDao
     abstract fun baselineDao(): BaselineDao
+    abstract fun lifeDao(): LifeDao
+    abstract fun trackingGapDao(): TrackingGapDao
 
     companion object {
         @Volatile
@@ -38,7 +42,8 @@ abstract class LifesaverDatabase : RoomDatabase() {
                     context.applicationContext,
                     LifesaverDatabase::class.java,
                     "lifesaver.db",
-                ).build().also { instance = it }
+                    // Personal dev app with no production data to preserve — recreate on schema bump.
+                ).fallbackToDestructiveMigration(true).build().also { instance = it }
             }
     }
 }

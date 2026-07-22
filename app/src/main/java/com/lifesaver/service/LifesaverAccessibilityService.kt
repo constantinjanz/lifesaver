@@ -35,6 +35,7 @@ class LifesaverAccessibilityService : AccessibilityService() {
     private lateinit var accountant: ForegroundAccountant
     private lateinit var notifications: Notifications
     private lateinit var db: LifesaverDatabase
+    private lateinit var settingsRepo: com.lifesaver.data.SettingsRepository
 
     // Live config snapshot, refreshed from settings.
     @Volatile private var settings: Settings = Settings()
@@ -57,7 +58,30 @@ class LifesaverAccessibilityService : AccessibilityService() {
         db = container.database
         accountant = ForegroundAccountant(db)
         notifications = container.notifications
+        settingsRepo = container.settings
         scope.launch { container.settings.settings.collect { settings = it } }
+        startHeartbeat()
+    }
+
+    /** Integrity layer (§9.2): on connect, if we were dark for >10min, log a tracking gap; then
+     *  tick a heartbeat so the next dark period is measurable. */
+    private fun startHeartbeat() {
+        scope.launch {
+            val last = settingsRepo.lastAlive()
+            val now = System.currentTimeMillis()
+            if (last in 1 until now && now - last > 10 * 60_000L) {
+                db.trackingGapDao().insert(
+                    com.lifesaver.data.TrackingGap(
+                        startTs = last, endTs = now,
+                        dayKey = DayKeys.dayKey(now), durationMs = now - last,
+                    ),
+                )
+            }
+            while (isActive) {
+                settingsRepo.setLastAlive(System.currentTimeMillis())
+                delay(60_000L)
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

@@ -54,13 +54,34 @@ class MidnightResetWorker(context: Context, params: WorkerParameters) :
         }
         val unlocksUsed = db.unlockDao().forWeek(DayKeys.weekKeyOf(endedDay))
             .count { it.dayKey == endedDay }
-        val success = withinBudget && unlocksUsed == 0
-        val reason = when {
+        // Integrity (§9.2): a >10min tracking gap voids the day.
+        val hadGap = db.trackingGapDao().gapMsForDay(endedDay) > 10 * 60_000L
+        val rawSuccess = withinBudget && unlocksUsed == 0 && !hadGap
+
+        var success = rawSuccess
+        var freezeConsumed = false
+        var reason = when {
+            hadGap -> "tracking_gap"
             unlocksUsed > 0 -> "unlock_used"
             !withinBudget -> "over_budget"
             else -> "ok"
         }
-        db.statusDao().upsert(DailyStatus(endedDay, success, reason, unlocksUsed))
+        // Streak insurance (§9.6): a failed day auto-consumes a banked freeze; the streak survives.
+        if (!rawSuccess && settings.bankedFreezes > 0) {
+            success = true
+            freezeConsumed = true
+            reason = "freeze_used"
+            container.settings.setBankedFreezes(settings.bankedFreezes - 1)
+        }
+        db.statusDao().upsert(DailyStatus(endedDay, success, reason, unlocksUsed, freezeConsumed))
+
+        // Earn a freeze every 7 consecutive genuine-success days (max 2 banked).
+        if (rawSuccess) {
+            val streak = com.lifesaver.domain.StreakCalculator.compute(db.statusDao().recent(400)).current
+            if (streak > 0 && streak % 7 == 0) {
+                container.settings.setBankedFreezes((settings.bankedFreezes + 1).coerceAtMost(2))
+            }
+        }
 
         scheduleNext(applicationContext)
         return Result.success()

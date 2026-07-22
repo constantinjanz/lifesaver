@@ -45,6 +45,12 @@ data class Settings(
     val redirectApps: List<RedirectApp> = emptyList(),
     /** Epoch millis until which all friction/blocks are lifted by an active emergency unlock (§3.5). */
     val pausedUntilMs: Long = 0,
+    // v1.1 life layer (§9.4) + streak insurance (§9.6) + patterns (§9.1).
+    val weeklyFocusArea: String? = null,
+    val weeklyFocusTarget: Int = 0,
+    val weeklyFocusWeekKey: String = "",
+    val bankedFreezes: Int = 0,
+    val dismissedPatterns: Set<String> = emptySet(),
 ) {
     fun budgetMin(appId: String): Int = budgetMinByApp[appId] ?: 30
     fun budgetMs(appId: String): Long = budgetMin(appId) * 60_000L
