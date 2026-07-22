@@ -50,6 +50,9 @@ class LifesaverAccessibilityService : AccessibilityService() {
     /** True while our own intervention/block screen covers the target — don't accrue that time. */
     @Volatile private var ownUiForeground = false
     private var tickJob: Job? = null
+    // Debounce enforcement so PiP/window churn can't re-launch the block/intervention in a loop.
+    @Volatile private var lastEnforceApp: String? = null
+    @Volatile private var lastEnforceAtMs = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -121,10 +124,45 @@ class LifesaverAccessibilityService : AccessibilityService() {
         val now = System.currentTimeMillis()
         endCurrentSession(now)
 
-        if (isTarget) {
+        // A target playing in a small floating window (Picture-in-Picture, e.g. YouTube minimised)
+        // is not a fresh full-screen open — don't start a session or throw up the block/pause for it,
+        // otherwise it re-fires every time the PiP window changes. We re-enforce when it goes full again.
+        if (isTarget && !isTargetInSmallWindow(pkg)) {
             startSession(pkg, now)
             if (enforcing()) decideOnEntry(pkg)
         }
+    }
+
+    /** True if [pkg]'s window covers only a small part of the screen (PiP / floating). Best-effort. */
+    private fun isTargetInSmallWindow(pkg: String): Boolean {
+        return try {
+            val dm = resources.displayMetrics
+            val screenArea = dm.widthPixels.toLong() * dm.heightPixels.toLong()
+            if (screenArea <= 0L) return false
+            val rect = android.graphics.Rect()
+            for (w in windows) {
+                val root = w.root ?: continue
+                val wPkg = root.packageName?.toString()
+                @Suppress("DEPRECATION") root.recycle()
+                if (wPkg != pkg) continue
+                w.getBoundsInScreen(rect)
+                val area = rect.width().toLong() * rect.height().toLong()
+                if (area in 1 until (screenArea * 4 / 10)) return true // < 40% of screen ⇒ PiP-ish
+            }
+            false
+        } catch (t: Throwable) {
+            false
+        }
+    }
+
+    private fun canEnforceNow(app: String): Boolean {
+        val now = System.currentTimeMillis()
+        return !(app == lastEnforceApp && now - lastEnforceAtMs < ENFORCE_COOLDOWN_MS)
+    }
+
+    private fun markEnforced(app: String) {
+        lastEnforceApp = app
+        lastEnforceAtMs = System.currentTimeMillis()
     }
 
     // --- Session lifecycle ---
@@ -184,7 +222,7 @@ class LifesaverAccessibilityService : AccessibilityService() {
             val a = accountant.accrue(app, dayKey, delta, fast, budget)
             if (enforce) {
                 if (a.exhausted) {
-                    postBlock(app)
+                    triggerBlock(app)
                 } else {
                     notifications.showUsage(
                         notifId(app),
@@ -206,17 +244,19 @@ class LifesaverAccessibilityService : AccessibilityService() {
         scope.launch {
             val eff = accountant.effectiveToday(app, dayKey)
             if (budget in 1..eff) {
-                postBlock(app)
+                triggerBlock(app)
             } else {
                 val openIndex = db.interventionDao().openCountToday(app, dayKey) + 1
                 val friction = FrictionLadder.pauseSeconds(openIndex, settings.strictness)
                 val minutesLeft = ((budget - eff) / 60_000L).toInt().coerceAtLeast(0)
-                postIntervention(app, openIndex, friction, minutesLeft)
+                triggerIntervention(app, openIndex, friction, minutesLeft)
             }
         }
     }
 
-    private fun postIntervention(app: String, openIndex: Int, friction: Int, minutesLeft: Int) {
+    private fun triggerIntervention(app: String, openIndex: Int, friction: Int, minutesLeft: Int) {
+        if (!canEnforceNow(app)) return
+        markEnforced(app)
         ownUiForeground = true
         main.post {
             val label = DetectionConfig.targetFor(app)?.label ?: app
@@ -231,9 +271,15 @@ class LifesaverAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun postBlock(app: String) {
+    private fun triggerBlock(app: String) {
+        if (!canEnforceNow(app)) return
+        markEnforced(app)
         ownUiForeground = true
         main.post {
+            // The app is done for today: end accounting for this session so a PiP window can't
+            // respawn the block via the periodic tick. Re-opening it full-screen re-blocks once.
+            stopTicker()
+            if (currentApp == app) currentApp = null
             val label = DetectionConfig.targetFor(app)?.label ?: app
             val intent = Intent(this, BlockActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -264,6 +310,7 @@ class LifesaverAccessibilityService : AccessibilityService() {
     companion object {
         private const val TICK_MS = 5_000L
         private const val DETECT_DEBOUNCE_MS = 500L
+        private const val ENFORCE_COOLDOWN_MS = 6_000L
 
         @Volatile var isConnected: Boolean = false; private set
         @Volatile var lastForegroundPackage: String? = null; private set
