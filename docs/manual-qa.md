@@ -50,6 +50,20 @@ Or copy `Lifesaver-debug.apk` to the phone and tap it (allow "install unknown ap
 - [ ] Loosening a setting (raise budget) shows a 24h pending banner; tightening applies instantly.
 - [ ] Sunday check-in (3 sliders) records and plots.
 
+## DESIGN v2 — Liquid Glass Cockpit (on-device visual checks)
+- [ ] Ambient color blobs shine through the glass panels; cockpit blobs drift slowly.
+- [ ] Top light edge visible on the top of cards/tiles; hairline border all around.
+- [ ] No flat gray surfaces anywhere; no ALL-CAPS labels (sentence case only).
+- [ ] Backdrop blur renders on cards (Android 12+); Debug "Backdrop blur (A/B)" toggle flips to
+      the solid fallback and back.
+- [ ] Cockpit: hero ring = reclaimed today; IG/YT budget ring tiles; floating dock at bottom.
+- [ ] Dock navigates Cockpit / Patterns / Life; overflow → Weekly report / Settings / Debug.
+- [ ] Patterns: hour×weekday heatmap populated; risk windows/Reels share/first-touch read.
+- [ ] Life: tap an area tile → spring pulse + count increments; weekly-focus ring fills.
+- [ ] Weekly report: usage-vs-baseline, time saved, integrity, life hours, check-in sliders.
+- [ ] Intervention fades in with a breathing hero-ring countdown; Continue pill gated until done.
+- [ ] Scrolling stays ~60fps; if it drops, flip the Debug blur toggle off.
+
 ## M7 — Hardening
 - [ ] After a reboot, the accessibility service still intercepts (open Instagram).
 - [ ] After 24h idle + overnight deep sleep, interception still fires (battery-opt exclusion held).

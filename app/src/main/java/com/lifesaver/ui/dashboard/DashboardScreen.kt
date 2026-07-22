@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalFireDepartment
@@ -190,7 +191,12 @@ private fun StreakAndSaved(state: DashboardState) {
                 Text("${state.streaks.current}", style = MaterialTheme.typography.titleLarge)
             }
             Text("day streak", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            Text("longest ${state.streaks.longest}", style = MaterialTheme.typography.bodySmall, color = TextCaption)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                repeat(state.settings.bankedFreezes) {
+                    Icon(Icons.Filled.AcUnit, contentDescription = "freeze", tint = com.lifesaver.ui.theme.BlobBlue, modifier = Modifier.height(12.dp))
+                }
+                Text("longest ${state.streaks.longest}", style = MaterialTheme.typography.bodySmall, color = TextCaption)
+            }
         }
         GlassTile(modifier = Modifier.weight(1f)) {
             Text(TimeSaved.formatHm(state.weeklySavedMs), style = MaterialTheme.typography.titleLarge)
