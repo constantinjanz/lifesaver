@@ -78,13 +78,24 @@ fun LifesaverNavHost(
             )
         }
         composable(Routes.PATTERNS) {
-            PlaceholderScreen("Patterns", "Patterns land in the next stage.", onBack = { nav.popBackStack() })
+            com.lifesaver.ui.patterns.PatternsScreen(loadPatterns = vm::loadPatterns, onBack = { nav.popBackStack() })
         }
         composable(Routes.LIFE) {
-            PlaceholderScreen("Life", "Life log lands in the next stage.", onBack = { nav.popBackStack() })
+            com.lifesaver.ui.life.LifeScreen(
+                logsFlow = vm.lifeLogsThisWeek(),
+                focusArea = state.settings.weeklyFocusArea,
+                focusTarget = state.settings.weeklyFocusTarget,
+                onLog = vm::logLife,
+                onSetFocus = vm::setWeeklyFocus,
+                onBack = { nav.popBackStack() },
+            )
         }
         composable(Routes.REPORT) {
-            PlaceholderScreen("Weekly report", "Weekly report lands in the next stage.", onBack = { nav.popBackStack() })
+            com.lifesaver.ui.report.ReportScreen(
+                loadReport = vm::loadReport,
+                onSubmitCheckin = vm::submitCheckin,
+                onBack = { nav.popBackStack() },
+            )
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(

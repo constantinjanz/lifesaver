@@ -26,6 +26,12 @@ interface InterventionDao {
             "WHERE appId = :appId AND dayKey = :dayKey AND action != 'blocked'",
     )
     suspend fun openCountToday(appId: String, dayKey: String): Int
+
+    @Query("SELECT COUNT(*) FROM intervention_events WHERE dayKey >= :fromDayKey AND action != 'blocked'")
+    suspend fun countSince(fromDayKey: String): Int
+
+    @Query("SELECT COUNT(*) FROM intervention_events WHERE dayKey >= :fromDayKey AND action IN ('redirect','micro_action')")
+    suspend fun substitutionsSince(fromDayKey: String): Int
 }
 
 @Dao
@@ -137,6 +143,9 @@ interface CheckinDao {
 
     @Query("SELECT * FROM checkins ORDER BY weekKey DESC LIMIT :limit")
     fun recent(limit: Int): Flow<List<Checkin>>
+
+    @Query("SELECT * FROM checkins ORDER BY weekKey DESC LIMIT 1")
+    suspend fun latest(): Checkin?
 }
 
 @Dao

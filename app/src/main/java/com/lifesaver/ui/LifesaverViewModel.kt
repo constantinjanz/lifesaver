@@ -261,7 +261,125 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun nowMs() = System.currentTimeMillis()
 
+    // --- v1.1 screens: Patterns, Life, Report ---
+
+    private fun weekStartDayKey(): String = DayKeys.weekKeyOf(DayKeys.todayKey())
+
+    fun lifeLogsThisWeek() = db.lifeDao().since(weekStartDayKey())
+
+    fun logLife(area: String, minutes: Int) {
+        viewModelScope.launch {
+            db.lifeDao().insert(
+                com.lifesaver.data.LifeLog(area = area, dayKey = DayKeys.todayKey(), minutes = minutes, ts = nowMs()),
+            )
+        }
+    }
+
+    fun setWeeklyFocus(area: String, target: Int) {
+        viewModelScope.launch { container.settings.setWeeklyFocus(area, target, weekStartDayKey()) }
+    }
+
+    suspend fun loadPatterns(): com.lifesaver.domain.PatternsData =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val zone = java.time.ZoneId.systemDefault()
+            val windowMs = 28L * 24 * 60 * 60 * 1000
+            val fromMs = nowMs() - windowMs
+            val sessions = db.usageDao().sessionsSince(fromMs)
+            val heat = Array(7) { IntArray(24) }
+            val dates = HashSet<java.time.LocalDate>()
+            val earliestHour = HashMap<java.time.LocalDate, Int>()
+            var postMidnightMs = 0L
+            sessions.forEach { s ->
+                val zdt = java.time.Instant.ofEpochMilli(s.startTs).atZone(zone)
+                val wd = zdt.dayOfWeek.value - 1
+                val hr = zdt.hour
+                heat[wd][hr] += (s.durationMs / 60_000L).toInt()
+                val d = zdt.toLocalDate()
+                dates.add(d)
+                earliestHour.merge(d, hr) { a, b -> minOf(a, b) }
+                if (hr < 4) postMidnightMs += s.durationMs
+            }
+            val usage = db.usageDao().usageSince(DayKeys.dayKey(fromMs))
+            val fg = usage.sumOf { it.foregroundMs }
+            val reels = usage.sumOf { it.reelsShortsMs }
+            val reelsPct = if (fg > 0) (reels * 100 / fg).toInt() else 0
+            val days = dates.size.coerceAtLeast(1)
+            val riskWindows = topCells(heat).map { (wd, hr) -> "${WEEKDAYS[wd]} %02d:00".format(hr) }
+            com.lifesaver.domain.PatternsData(
+                heatmap = heat.map { it.toList() },
+                reelsSharePct = reelsPct,
+                postMidnightMinPerDay = (postMidnightMs / 60_000L / days).toInt(),
+                firstTouchDays = earliestHour.count { it.value < 9 },
+                riskWindows = riskWindows,
+                daysCovered = dates.size,
+            )
+        }
+
+    suspend fun loadReport(): com.lifesaver.domain.ReportData =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val settings = container.settings.current()
+            val today = LocalDate.now()
+            val weekKey = DayKeys.weekKeyOf(today.toString())
+            val weekStart = LocalDate.parse(weekKey)
+            val baselines = db.baselineDao().all()
+            val perApp = settings.enabledApps.map { app ->
+                var actual = 0L; var base = 0L
+                var d = weekStart
+                while (!d.isAfter(today)) {
+                    val dk = d.toString()
+                    actual += db.usageDao().get(dk, app)?.let { BudgetEngine.effectiveBurnMs(it) } ?: 0L
+                    base += BaselineModel.baselineForDay(baselines, app, dk)
+                    d = d.plusDays(1)
+                }
+                com.lifesaver.domain.ReportData.AppWeek(labelFor(app), actual, base)
+            }
+            val saved = perApp.sumOf { TimeSaved.savedMs(it.baselineMs, it.actualMs) }
+            val total = db.interventionDao().countSince(weekKey)
+            val subs = db.interventionDao().substitutionsSince(weekKey)
+            val unlocks = db.unlockDao().forWeek(weekKey).map {
+                com.lifesaver.domain.ReportData.UnlockLine(it.reason, it.dayKey)
+            }
+            val gapMs = db.trackingGapDao().since(weekKey).sumOf { it.durationMs }
+            val lifeByArea = db.lifeDao().listSince(weekKey).groupBy { it.area }
+                .mapValues { e -> e.value.sumOf { it.minutes } }
+            val focusText = settings.weeklyFocusArea?.let { area ->
+                val logged = db.lifeDao().listSince(weekKey).count { it.area == area }
+                "$logged of ${settings.weeklyFocusTarget} · ${areaLabel(area)}"
+            }
+            val checkin = db.checkinDao().latest()?.let {
+                com.lifesaver.domain.ReportData.CheckinValues(it.control, it.satisfaction, it.impulse)
+            }
+            com.lifesaver.domain.ReportData(
+                weekKey = weekKey, perApp = perApp, savedMs = saved,
+                substitutionPct = SubstitutionRate.percent(subs, total),
+                unlocks = unlocks, trackingGapMs = gapMs, lifeMinutesByArea = lifeByArea,
+                focusText = focusText, checkin = checkin,
+            )
+        }
+
+    fun dismissPattern(id: String) {
+        viewModelScope.launch { container.settings.dismissPattern(id) }
+    }
+
     companion object {
+        private val WEEKDAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+        val LIFE_AREAS = listOf("projects", "sport", "people", "learning")
+
         fun labelFor(appId: String): String = DetectionConfig.targetFor(appId)?.label ?: appId
+
+        fun areaLabel(area: String): String = when (area) {
+            "projects" -> "Projects"
+            "sport" -> "Sport & body"
+            "people" -> "People & experiences"
+            "learning" -> "Learning & reading"
+            else -> area
+        }
+
+        /** Top 3 non-empty heatmap cells as (weekday, hour). */
+        private fun topCells(heat: Array<IntArray>): List<Pair<Int, Int>> {
+            val cells = ArrayList<Triple<Int, Int, Int>>()
+            for (wd in 0..6) for (hr in 0..23) if (heat[wd][hr] > 0) cells.add(Triple(wd, hr, heat[wd][hr]))
+            return cells.sortedByDescending { it.third }.take(3).map { it.first to it.second }
+        }
     }
 }
