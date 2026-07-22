@@ -11,24 +11,26 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.lifesaver.service.Permissions
-import com.lifesaver.ui.components.PlaceholderScreen
+import com.lifesaver.ui.checkin.CheckinScreen
 import com.lifesaver.ui.dashboard.DashboardScreen
 import com.lifesaver.ui.debug.DebugScreen
 import com.lifesaver.ui.onboarding.OnboardingScreen
+import com.lifesaver.ui.settings.SettingsScreen
 
 object Routes {
     const val ONBOARDING = "onboarding"
     const val DASHBOARD = "dashboard"
     const val SETTINGS = "settings"
     const val PLANS = "plans"
+    const val CHECKIN = "checkin"
     const val DEBUG = "debug"
 }
 
 @Composable
 fun LifesaverNavHost(
+    vm: LifesaverViewModel,
     state: DashboardState,
     onGrantPermission: (Permissions.Kind) -> Unit,
-    onCompleteOnboarding: (List<com.lifesaver.data.IfThenPlan>, List<com.lifesaver.data.RedirectApp>, Map<String, Int>) -> Unit,
 ) {
     if (!state.hydrated) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -38,7 +40,6 @@ fun LifesaverNavHost(
     }
 
     val nav = rememberNavController()
-    // Decide the start once, from the first hydrated state, to avoid a flash.
     val start = remember { if (state.settings.onboardingComplete) Routes.DASHBOARD else Routes.ONBOARDING }
 
     NavHost(navController = nav, startDestination = start) {
@@ -50,10 +51,8 @@ fun LifesaverNavHost(
                 initialRedirects = state.settings.redirectApps,
                 onGrant = onGrantPermission,
                 onFinish = { plans, redirects, budgets ->
-                    onCompleteOnboarding(plans, redirects, budgets)
-                    nav.navigate(Routes.DASHBOARD) {
-                        popUpTo(Routes.ONBOARDING) { inclusive = true }
-                    }
+                    vm.completeOnboarding(plans, redirects, budgets)
+                    nav.navigate(Routes.DASHBOARD) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
                 },
             )
         }
@@ -67,10 +66,20 @@ fun LifesaverNavHost(
             )
         }
         composable(Routes.SETTINGS) {
-            PlaceholderScreen("Settings", "Settings arrive with rewards & self-binding.", onBack = { nav.popBackStack() })
+            SettingsScreen(
+                state = state,
+                onChangeBudget = vm::changeBudget,
+                onChangeStrictness = vm::changeStrictness,
+                onCancelPending = vm::cancelPendingChange,
+                onOpenCheckin = { nav.navigate(Routes.CHECKIN) },
+                onBack = { nav.popBackStack() },
+            )
         }
         composable(Routes.PLANS) {
             com.lifesaver.ui.plans.PlansScreen(onBack = { nav.popBackStack() })
+        }
+        composable(Routes.CHECKIN) {
+            CheckinScreen(onSubmit = vm::submitCheckin, onBack = { nav.popBackStack() })
         }
         composable(Routes.DEBUG) {
             DebugScreen(permissions = state.permissions, onBack = { nav.popBackStack() })

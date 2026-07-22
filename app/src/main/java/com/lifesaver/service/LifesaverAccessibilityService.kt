@@ -221,7 +221,8 @@ class LifesaverAccessibilityService : AccessibilityService() {
 
     // --- Phase helpers ---
 
-    private fun enforcing(): Boolean = !baselineActive() && settings.onboardingComplete
+    private fun enforcing(): Boolean =
+        !baselineActive() && settings.onboardingComplete && !settings.isPaused(System.currentTimeMillis())
 
     private fun baselineActive(): Boolean {
         if (!settings.onboardingComplete) return true

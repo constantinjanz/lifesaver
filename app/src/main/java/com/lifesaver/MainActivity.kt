@@ -31,12 +31,10 @@ class MainActivity : ComponentActivity() {
             LifesaverTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = Background) {
                     LifesaverNavHost(
+                        vm = viewModel,
                         state = state,
                         onGrantPermission = { kind ->
                             startActivity(Permissions.settingsIntent(this@MainActivity, kind))
-                        },
-                        onCompleteOnboarding = { plans, redirects, budgets ->
-                            viewModel.completeOnboarding(plans, redirects, budgets)
                         },
                     )
                 }

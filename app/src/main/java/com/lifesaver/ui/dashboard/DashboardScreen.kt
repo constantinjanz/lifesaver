@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lifesaver.detection.DetectionConfig
 import com.lifesaver.domain.BudgetEngine
+import com.lifesaver.domain.TimeSaved
 import com.lifesaver.ui.DashboardState
 import com.lifesaver.ui.Phase
 import com.lifesaver.ui.components.BudgetBar
@@ -99,9 +100,13 @@ fun DashboardScreen(
             if (state.permissions.values.any { !it } && state.permissions.isNotEmpty()) {
                 PermissionsWarning(onFixPermissions)
             }
+            if (state.pendingChanges.isNotEmpty()) {
+                PendingBanner(state.pendingChanges.size, onOpenSettings)
+            }
 
             TodayCard(state)
             StreakCard(state)
+            TimeSavedCard(state)
             SubstitutionCard(state)
         }
     }
@@ -149,6 +154,35 @@ private fun TodayCard(state: DashboardState) {
             )
             Spacer(Modifier.height(12.dp))
         }
+        Text(
+            "${state.remainingUnlocks} emergency unlocks left this week",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextSecondary,
+        )
+    }
+}
+
+@Composable
+private fun TimeSavedCard(state: DashboardState) {
+    LifesaverCard {
+        Text(TimeSaved.formatHm(state.weeklySavedMs), style = MaterialTheme.typography.displaySmall)
+        Text("SAVED THIS WEEK", style = MaterialTheme.typography.bodySmall, color = Accent)
+        if (state.weeklySavedMs > 0) {
+            Spacer(Modifier.height(4.dp))
+            Text(TimeSaved.tangible(state.weeklySavedMs), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun PendingBanner(count: Int, onOpen: () -> Unit) {
+    LifesaverCard(modifier = Modifier.clickableCard(onOpen)) {
+        Text("PENDING CHANGES", style = MaterialTheme.typography.bodySmall, color = Warning)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "$count setting change${if (count == 1) "" else "s"} waiting on the 24h rule. Tap to review.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 

@@ -56,9 +56,27 @@ class Notifications(private val context: Context) {
     fun showUsage(id: Int, notification: Notification) = nm.notify(id, notification)
     fun cancelUsage(id: Int) = nm.cancel(id)
 
+    /** Sunday evening check-in nudge (§3.7). The one allowed non-scroll-moment notification (§9.4). */
+    fun showWeeklyCheckin() {
+        val open = android.app.PendingIntent.getActivity(
+            context, 1,
+            android.content.Intent(context, MainActivity::class.java),
+            android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val n = NotificationCompat.Builder(context, CHANNEL_WEEKLY)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Weekly check-in")
+            .setContentText("30 seconds: how did this week feel?")
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        nm.notify(WEEKLY_NOTIFICATION_ID, n)
+    }
+
     companion object {
         const val CHANNEL_USAGE = "usage_status"
         const val CHANNEL_WEEKLY = "weekly_report"
         const val USAGE_NOTIFICATION_ID_BASE = 1000
+        const val WEEKLY_NOTIFICATION_ID = 2000
     }
 }

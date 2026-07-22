@@ -29,6 +29,7 @@ class SettingsRepository(private val context: Context) {
         val STRICTNESS = stringPreferencesKey("strictness")
         val PLANS = stringPreferencesKey("if_then_plans_json")
         val REDIRECTS = stringPreferencesKey("redirect_apps_json")
+        val PAUSED_UNTIL = longPreferencesKey("paused_until_ms")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -43,6 +44,7 @@ class SettingsRepository(private val context: Context) {
                 .getOrDefault(Strictness.STANDARD),
             ifThenPlans = Settings.plansFromJson(p[Keys.PLANS]),
             redirectApps = Settings.redirectsFromJson(p[Keys.REDIRECTS]),
+            pausedUntilMs = p[Keys.PAUSED_UNTIL] ?: 0,
         )
     }
 
@@ -69,6 +71,8 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setRedirectApps(apps: List<RedirectApp>) =
         edit { it[Keys.REDIRECTS] = Settings.redirectsToJson(apps) }
+
+    suspend fun setPausedUntil(epochMs: Long) = edit { it[Keys.PAUSED_UNTIL] = epochMs }
 
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         context.dataStore.edit(block)

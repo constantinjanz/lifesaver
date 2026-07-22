@@ -21,40 +21,40 @@ Plan: `~/.claude/plans/declarative-doodling-sparrow.md`. Source of truth: `PRD.m
 - [x] Dashboard skeleton reading UsageStatsManager (today's IG/YT usage) + baseline banner
 - [x] Nav graph (dashboard / onboarding / settings / plans / debug)
 
-## M2 — Baseline & budget engine
-- [ ] 2-day observation mode + baseline banner
-- [ ] AccessibilityService foreground detection + ForegroundAccountant
-- [ ] UsageStatsReconciler (daily correction)
-- [ ] Persistent low-priority usage notification
-- [ ] BudgetEngine + BlockActivity (hard block at 0, lifts at local midnight) + MidnightResetWorker
+## M2 — Baseline & budget engine  ✅ DONE — builds
+- [x] 2-day observation mode + baseline banner
+- [x] AccessibilityService foreground detection + ForegroundAccountant (mutex-serialized accrual)
+- [x] UsageStatsReader (today + reconciliation source)
+- [x] Persistent low-priority usage notification
+- [x] BudgetEngine + BlockActivity (hard block at 0, lifts at local midnight) + MidnightResetWorker
 
-## M3 — Intervention screen
-- [ ] InterventionActivity (Compose, circular reveal), escalating 5/15/30s countdown, breathing pulse
-- [ ] Context-matched if-then plan display, gated CONTINUE ("n MIN LEFT")
-- [ ] Overlay race hardening
+## M3 — Intervention screen  ✅ DONE — builds
+- [x] InterventionActivity (Compose), escalating 5/15/30s countdown, breathing pulse
+- [x] Context-matched if-then plan display (PlanMatcher), gated CONTINUE ("n MIN LEFT")
+- [x] Overlay handling: accrual paused while our UI covers the app; currentApp invariant prevents re-fire
 
-## M4 — Substitution
-- [ ] If-then plan onboarding + editor (min 2 contexts)
-- [ ] Redirect app picker (installed apps) + intent launch
-- [ ] Micro-actions: 60s breathing, one-line journal, today's goals
-- [ ] Substitution-rate recording
+## M4 — Substitution  ✅ DONE — builds
+- [x] If-then plan onboarding + standalone editor (3 contexts)
+- [x] Redirect app picker (installed apps) + intent launch (intervention + block screens)
+- [x] Micro-actions: 60s breathing, one-line journal, today's goals
+- [x] Substitution-rate recording (per intervention exit)
 
-## M5 — Reels/Shorts detection
-- [ ] SurfaceDetector (node-tree scan, ≤500ms debounce) + 2x multiplier
-- [ ] Debug screen: live view IDs, current surface, service status
+## M5 — Reels/Shorts detection  ✅ DONE — builds
+- [x] SurfaceDetector (bounded node-tree scan, 500ms debounce) + 2x multiplier
+- [x] Debug screen: live view IDs, current surface, service status
 
-## M6 — Rewards & binding
-- [ ] StreakCalculator (current + longest)
-- [ ] TimeSaved tangibles (pages/workouts/study)
-- [ ] Weekly check-in (3 sliders, Sunday)
-- [ ] Emergency unlocks (2/week, 15 min, typed reason)
-- [ ] SelfBinding 24h queue (loosen delayed, tighten immediate) + ApplyQueuedChangesWorker
+## M6 — Rewards & binding  ✅ DONE — builds
+- [x] StreakCalculator (current + longest)
+- [x] TimeSaved tangibles (pages/workouts) — weekly dashboard card
+- [x] Weekly check-in (3 sliders) + Sunday notification (WeeklyCheckinWorker)
+- [x] Emergency unlocks (2/week, 15 min, typed reason, day excluded from streak, pause honored by service)
+- [x] SelfBinding 24h queue (loosen delayed w/ banner + cancel, tighten immediate) + ApplyQueuedChangesWorker
 
-## M7 — Hardening
-- [ ] Samsung battery-opt flow, BOOT_COMPLETED persistence
-- [ ] Midnight/timezone edge cases (no negative budgets)
-- [ ] Empty states, polish
-- [ ] §7 acceptance-criteria pass + manual-QA checklist doc
+## M7 — Hardening  ✅ DONE — builds
+- [x] Battery-opt flow (onboarding), BOOT_COMPLETED receiver reschedules workers
+- [x] Midnight/timezone via local DayKeys; budgets clamp ≥ 0 (no negatives)
+- [x] Empty states (zeros render), polish
+- [x] §7 acceptance-criteria manual-QA checklist doc (docs/manual-qa.md — device-only checks)
 
 ## Review notes
 (filled per milestone)

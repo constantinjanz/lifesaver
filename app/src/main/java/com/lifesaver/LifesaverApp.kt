@@ -21,6 +21,8 @@ class LifesaverApp : Application() {
         container.notifications.ensureChannels()
         // Anchor daily rollover to local midnight (streak finalize + baseline refine).
         com.lifesaver.work.MidnightResetWorker.scheduleNext(this)
+        // Sunday-evening weekly check-in nudge.
+        com.lifesaver.work.WeeklyCheckinWorker.schedule(this)
     }
 
     companion object {
