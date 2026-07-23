@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lifesaver — approve more time?</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#0A0A0F;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:20px}
+.card{width:100%;max-width:420px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+border-radius:24px;padding:28px;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+h1{font-size:22px;font-weight:600;margin:0 0 8px}
+p{color:rgba(255,255,255,.6);font-size:15px;line-height:1.5;margin:8px 0 16px}
+.big{font-size:20px;font-weight:600;color:#fff}
+input{width:100%;font-size:22px;letter-spacing:6px;text-align:center;padding:14px;border-radius:14px;
+border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);color:#fff;margin:8px 0 12px}
+button{width:100%;padding:14px;border:0;border-radius:999px;font-size:16px;font-weight:600;cursor:pointer;margin-top:8px}
+.primary{background:#FF9500;color:#111}
+.ghost{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.16)}
+.ok{color:#30D158}.bad{color:#FF453A}
+</style>
+</head>
+<body>
+<div class="card" id="card"><p>Loading…</p></div>
+<script>
+const FN = "https://lrpkvxqdsaavxmuxnjqi.supabase.co/functions/v1/buddy";
+const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxycGt2eHFkc2FhdnhtdXhuanFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3OTcxMzAsImV4cCI6MjEwMDM3MzEzMH0.t-SdF2LIFNAqAL__nRxiBKFdTJShy4Hga1VDlALU0cU";
+const req = new URLSearchParams(location.search).get("req");
+const card = document.getElementById("card");
+const H = { "apikey": KEY, "authorization": "Bearer " + KEY };
+function esc(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+async function load() {
+  try {
+    const r = await fetch(FN + "?action=request_info&req=" + encodeURIComponent(req), { headers: H });
+    const d = await r.json();
+    if (d.error) { card.innerHTML = "<h1>Request not found</h1>"; return; }
+    if (d.status !== "pending") { card.innerHTML = '<h1 class="' + (d.status === "approved" ? "ok" : "bad") + '">Already ' + d.status + "</h1><p>This request was already handled.</p>"; return; }
+    card.innerHTML =
+      '<h1>Grant more time?</h1>' +
+      '<p class="big">+' + d.minutes + ' min of ' + esc(d.app_label || "an app") + '</p>' +
+      (d.reason ? '<p>Their reason: “' + esc(d.reason) + '”</p>' : '') +
+      '<input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" placeholder="Your PIN">' +
+      '<button id="ap" class="primary">Approve</button>' +
+      '<button id="dn" class="ghost">Deny</button>';
+    document.getElementById("ap").onclick = () => decide("approve");
+    document.getElementById("dn").onclick = () => decide("deny");
+  } catch (e) { card.innerHTML = "<h1>Network error</h1><p>Check your connection and reopen the link.</p>"; }
+}
+
+async function decide(decision) {
+  const pinEl = document.getElementById("pin");
+  const pin = pinEl ? pinEl.value.trim() : "";
+  if (decision === "approve" && !/^[0-9]{4,8}$/.test(pin)) { alert("Enter your PIN"); return; }
+  try {
+    const r = await fetch(FN + "?action=decide", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...H },
+      body: JSON.stringify({ req, pin, decision }),
+    });
+    const d = await r.json();
+    if (d.status === "approved") card.innerHTML = '<h1 class="ok">Approved ✅</h1><p>You granted +' + d.minutes + ' min. Their app will unlock in a moment.</p>';
+    else if (d.status === "denied") card.innerHTML = '<h1 class="bad">Denied</h1><p>No extra time granted.</p>';
+    else if (d.error === "wrong_pin") alert("Wrong PIN — try again.");
+    else if (d.error === "locked") alert("Too many wrong tries — locked for a while.");
+    else card.innerHTML = "<h1>Something went wrong</h1>";
+  } catch (e) { alert("Network error — try again."); }
+}
+load();
+</script>
+</body>
+</html>
