@@ -28,6 +28,7 @@ object Routes {
     const val PATTERNS = "patterns"
     const val LIFE = "life"
     const val REPORT = "report"
+    const val BUDDY = "buddy"
 }
 
 @Composable
@@ -105,6 +106,7 @@ fun LifesaverNavHost(
                 onCancelPending = vm::cancelPendingChange,
                 onSetBlockedWindow = vm::setBlockedWindow,
                 onOpenCheckin = { nav.navigate(Routes.CHECKIN) },
+                onOpenBuddy = { nav.navigate(Routes.BUDDY) },
                 onBack = { nav.popBackStack() },
             )
         }
@@ -113,6 +115,18 @@ fun LifesaverNavHost(
         }
         composable(Routes.CHECKIN) {
             CheckinScreen(onSubmit = vm::submitCheckin, onBack = { nav.popBackStack() })
+        }
+        composable(Routes.BUDDY) {
+            com.lifesaver.ui.buddy.BuddyScreen(
+                paired = state.settings.buddyPaired,
+                buddyLabel = state.settings.buddyLabel,
+                onPair = vm::buddyPair,
+                onRequest = vm::buddyRequest,
+                onPoll = vm::buddyStatus,
+                onApproved = vm::buddyApprove,
+                onUnpair = vm::buddyUnpair,
+                onBack = { nav.popBackStack() },
+            )
         }
         composable(Routes.DEBUG) {
             DebugScreen(permissions = state.permissions, onBack = { nav.popBackStack() })

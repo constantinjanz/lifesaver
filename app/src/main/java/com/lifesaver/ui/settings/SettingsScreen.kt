@@ -49,6 +49,7 @@ fun SettingsScreen(
     onCancelPending: (Long) -> Unit,
     onSetBlockedWindow: (String, com.lifesaver.domain.BlockWindow?) -> Unit,
     onOpenCheckin: () -> Unit,
+    onOpenBuddy: () -> Unit,
     onBack: () -> Unit,
 ) {
     com.lifesaver.ui.components.glass.GlassScreen(title = "Settings", onBack = onBack, seed = 3) { padding ->
@@ -89,6 +90,23 @@ fun SettingsScreen(
 
             Category("FRICTION")
             StrictnessSetting(state.settings.strictness, onChangeStrictness)
+
+            Category("BUDDY UNLOCK")
+            LifesaverCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            if (state.settings.buddyPaired) "Paired with ${state.settings.buddyLabel}" else "Get more time only via a trusted buddy",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            "A friend approves extra time on WhatsApp with their secret PIN.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    FlatButton(if (state.settings.buddyPaired) "Open" else "Set up", onClick = onOpenBuddy)
+                }
+            }
 
             Category("WEEKLY")
             LifesaverCard {

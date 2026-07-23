@@ -54,7 +54,11 @@ data class Settings(
     val dismissedPatterns: Set<String> = emptySet(),
     /** Per-app daily hard-block window (user feature: fully inaccessible during those hours). */
     val blockedWindows: Map<String, BlockWindow> = emptyMap(),
+    // Buddy approval (Supabase-backed): the paired buddy grants extra time via WhatsApp + PIN.
+    val buddyPairingId: String? = null,
+    val buddyLabel: String? = null,
 ) {
+    val buddyPaired: Boolean get() = !buddyPairingId.isNullOrBlank()
     fun budgetMin(appId: String): Int = budgetMinByApp[appId] ?: 30
     fun budgetMs(appId: String): Long = budgetMin(appId) * 60_000L
     fun isPaused(nowMs: Long): Boolean = nowMs < pausedUntilMs

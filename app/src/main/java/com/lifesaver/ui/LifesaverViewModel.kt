@@ -236,6 +236,35 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { container.settings.setBlockedWindow(appId, window) }
     }
 
+    // --- Buddy approval ---
+
+    /** Create a pairing and persist it; returns the setup URL to send the buddy via WhatsApp. */
+    suspend fun buddyPair(label: String): String? {
+        val res = runCatching { com.lifesaver.buddy.BuddyClient.createPairing(label) }.getOrNull() ?: return null
+        container.settings.setBuddyPairing(res.pairingId, label)
+        return res.setupUrl
+    }
+
+    fun buddyUnpair() {
+        viewModelScope.launch { container.settings.setBuddyPairing(null, null) }
+    }
+
+    suspend fun buddyRequest(appId: String, appLabel: String, minutes: Int, reason: String): com.lifesaver.buddy.RequestResult? {
+        val pid = container.settings.current().buddyPairingId ?: return null
+        return runCatching { com.lifesaver.buddy.BuddyClient.createRequest(pid, appId, appLabel, minutes, reason) }.getOrNull()
+    }
+
+    suspend fun buddyStatus(requestId: String): String =
+        runCatching { com.lifesaver.buddy.BuddyClient.status(requestId) }.getOrDefault("unknown")
+
+    /** Apply an approved unlock: lift budget/intervention restrictions for [minutes] (like the
+     *  emergency unlock, but granted by the buddy). Scheduled hard-locks are unaffected. */
+    fun buddyApprove(minutes: Int) {
+        viewModelScope.launch {
+            container.settings.setPausedUntil(System.currentTimeMillis() + minutes * 60_000L)
+        }
+    }
+
     /** Emergency unlock (§3.5): 15 min lift, typed reason, day excluded from streak. */
     fun activateEmergencyUnlock(reason: String, onDone: () -> Unit = {}) {
         viewModelScope.launch {

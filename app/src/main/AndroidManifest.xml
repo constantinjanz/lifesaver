@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Buddy approval backend (Supabase edge function). -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Foreground detection / baseline / reconciliation (§3.3, §5). Special permission,
          granted via the Usage Access settings screen. -->
     <uses-permission

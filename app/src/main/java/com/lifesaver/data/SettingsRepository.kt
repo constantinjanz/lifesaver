@@ -37,6 +37,8 @@ class SettingsRepository(private val context: Context) {
         val DISMISSED = stringSetPreferencesKey("dismissed_patterns")
         val LAST_ALIVE = longPreferencesKey("last_alive_ms")
         val BLOCKED_WINDOWS = stringPreferencesKey("blocked_windows_json")
+        val BUDDY_PAIRING = stringPreferencesKey("buddy_pairing_id")
+        val BUDDY_LABEL = stringPreferencesKey("buddy_label")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -58,6 +60,8 @@ class SettingsRepository(private val context: Context) {
             bankedFreezes = p[Keys.FREEZES] ?: 0,
             dismissedPatterns = p[Keys.DISMISSED] ?: emptySet(),
             blockedWindows = Settings.windowsFromJson(p[Keys.BLOCKED_WINDOWS]),
+            buddyPairingId = p[Keys.BUDDY_PAIRING],
+            buddyLabel = p[Keys.BUDDY_LABEL],
         )
     }
 
@@ -100,6 +104,11 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setLastAlive(epochMs: Long) = edit { it[Keys.LAST_ALIVE] = epochMs }
+
+    suspend fun setBuddyPairing(pairingId: String?, label: String?) = edit {
+        if (pairingId.isNullOrBlank()) { it.remove(Keys.BUDDY_PAIRING); it.remove(Keys.BUDDY_LABEL) }
+        else { it[Keys.BUDDY_PAIRING] = pairingId; it[Keys.BUDDY_LABEL] = label ?: "your buddy" }
+    }
 
     /** Set (or clear, if window is null) an app's daily hard-block window. */
     suspend fun setBlockedWindow(appId: String, window: com.lifesaver.domain.BlockWindow?) = edit { prefs ->
