@@ -1,6 +1,7 @@
 package com.lifesaver.data
 
 import com.lifesaver.detection.DetectionConfig
+import com.lifesaver.domain.BlockWindow
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -51,10 +52,13 @@ data class Settings(
     val weeklyFocusWeekKey: String = "",
     val bankedFreezes: Int = 0,
     val dismissedPatterns: Set<String> = emptySet(),
+    /** Per-app daily hard-block window (user feature: fully inaccessible during those hours). */
+    val blockedWindows: Map<String, BlockWindow> = emptyMap(),
 ) {
     fun budgetMin(appId: String): Int = budgetMinByApp[appId] ?: 30
     fun budgetMs(appId: String): Long = budgetMin(appId) * 60_000L
     fun isPaused(nowMs: Long): Boolean = nowMs < pausedUntilMs
+    fun blockedWindow(appId: String): BlockWindow? = blockedWindows[appId]
 
     companion object {
         fun plansToJson(plans: List<IfThenPlan>): String =
@@ -86,6 +90,20 @@ data class Settings(
             if (s.isNullOrBlank()) return emptyMap()
             val o = runCatching { JSONObject(s) }.getOrNull() ?: return emptyMap()
             return o.keys().asSequence().associateWith { o.optInt(it, 30) }
+        }
+
+        fun windowsToJson(map: Map<String, BlockWindow>): String =
+            JSONObject().apply {
+                map.forEach { (k, w) -> put(k, JSONObject().put("s", w.startMinute).put("e", w.endMinute)) }
+            }.toString()
+
+        fun windowsFromJson(s: String?): Map<String, BlockWindow> {
+            if (s.isNullOrBlank()) return emptyMap()
+            val o = runCatching { JSONObject(s) }.getOrNull() ?: return emptyMap()
+            return o.keys().asSequence().mapNotNull { k ->
+                val w = o.optJSONObject(k) ?: return@mapNotNull null
+                k to BlockWindow(w.optInt("s"), w.optInt("e"))
+            }.toMap()
         }
     }
 }

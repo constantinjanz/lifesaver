@@ -232,6 +232,10 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { db.pendingChangeDao().cancel(id) }
     }
 
+    fun setBlockedWindow(appId: String, window: com.lifesaver.domain.BlockWindow?) {
+        viewModelScope.launch { container.settings.setBlockedWindow(appId, window) }
+    }
+
     /** Emergency unlock (§3.5): 15 min lift, typed reason, day excluded from streak. */
     fun activateEmergencyUnlock(reason: String, onDone: () -> Unit = {}) {
         viewModelScope.launch {

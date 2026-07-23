@@ -36,6 +36,7 @@ class SettingsRepository(private val context: Context) {
         val FREEZES = androidx.datastore.preferences.core.intPreferencesKey("banked_freezes")
         val DISMISSED = stringSetPreferencesKey("dismissed_patterns")
         val LAST_ALIVE = longPreferencesKey("last_alive_ms")
+        val BLOCKED_WINDOWS = stringPreferencesKey("blocked_windows_json")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -56,6 +57,7 @@ class SettingsRepository(private val context: Context) {
             weeklyFocusWeekKey = p[Keys.FOCUS_WEEK] ?: "",
             bankedFreezes = p[Keys.FREEZES] ?: 0,
             dismissedPatterns = p[Keys.DISMISSED] ?: emptySet(),
+            blockedWindows = Settings.windowsFromJson(p[Keys.BLOCKED_WINDOWS]),
         )
     }
 
@@ -98,6 +100,13 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setLastAlive(epochMs: Long) = edit { it[Keys.LAST_ALIVE] = epochMs }
+
+    /** Set (or clear, if window is null) an app's daily hard-block window. */
+    suspend fun setBlockedWindow(appId: String, window: com.lifesaver.domain.BlockWindow?) = edit { prefs ->
+        val map = Settings.windowsFromJson(prefs[Keys.BLOCKED_WINDOWS]).toMutableMap()
+        if (window == null || !window.enabled) map.remove(appId) else map[appId] = window
+        prefs[Keys.BLOCKED_WINDOWS] = Settings.windowsToJson(map)
+    }
 
     suspend fun lastAlive(): Long = context.dataStore.data.map { it[Keys.LAST_ALIVE] ?: 0L }.first()
 

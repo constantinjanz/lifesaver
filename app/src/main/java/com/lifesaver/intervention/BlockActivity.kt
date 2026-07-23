@@ -59,12 +59,16 @@ class BlockActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val appId = intent.getStringExtra(EXTRA_APP_ID) ?: ""
         val label = intent.getStringExtra(EXTRA_APP_LABEL) ?: appId
+        val scheduled = intent.getBooleanExtra(EXTRA_SCHEDULED, false)
+        val untilMin = intent.getIntExtra(EXTRA_UNTIL_MIN, -1)
         setContent {
             LifesaverTheme {
                 GlassBackground(seed = 2, drift = false) {
                     BlockContent(
                         appId = appId,
                         label = label,
+                        scheduled = scheduled,
+                        untilText = if (untilMin >= 0) com.lifesaver.domain.ScheduleBlock.format(untilMin) else null,
                         onClose = ::goHome,
                         onRedirect = ::redirectTo,
                         onUnlock = { reason -> activateUnlock(appId, reason) },
@@ -112,6 +116,8 @@ class BlockActivity : ComponentActivity() {
     companion object {
         const val EXTRA_APP_ID = "app_id"
         const val EXTRA_APP_LABEL = "app_label"
+        const val EXTRA_SCHEDULED = "scheduled"
+        const val EXTRA_UNTIL_MIN = "until_min"
     }
 }
 
@@ -122,6 +128,8 @@ private data class BlockRedirect(val packageName: String, val label: String, val
 private fun BlockContent(
     appId: String,
     label: String,
+    scheduled: Boolean,
+    untilText: String?,
     onClose: () -> Unit,
     onRedirect: (String) -> Unit,
     onUnlock: (String) -> Unit,
@@ -141,22 +149,30 @@ private fun BlockContent(
         }
         Spacer(Modifier.height(28.dp))
         Text(
-            "$label is done for today",
+            if (scheduled) "$label is locked" else "$label is done for today",
             style = MaterialTheme.typography.headlineSmall,
             color = TextPrimary,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
-        if (stats.savedToday > 0) {
+        if (scheduled) {
             Text(
-                "You've reclaimed ${TimeSaved.formatHm(stats.savedToday)} today.",
+                if (untilText != null) "You locked it until $untilText. No way around it — that was the point."
+                else "You locked it for this window. No way around it — that was the point.",
+                style = MaterialTheme.typography.bodyMedium, color = TextSecondary, textAlign = TextAlign.Center,
+            )
+        } else {
+            if (stats.savedToday > 0) {
+                Text(
+                    "You've reclaimed ${TimeSaved.formatHm(stats.savedToday)} today.",
+                    style = MaterialTheme.typography.bodyMedium, color = TextSecondary, textAlign = TextAlign.Center,
+                )
+            }
+            Text(
+                "${stats.streak} day streak. Resets at midnight.",
                 style = MaterialTheme.typography.bodyMedium, color = TextSecondary, textAlign = TextAlign.Center,
             )
         }
-        Text(
-            "${stats.streak} day streak. Resets at midnight.",
-            style = MaterialTheme.typography.bodyMedium, color = TextSecondary, textAlign = TextAlign.Center,
-        )
 
         if (redirects.isNotEmpty()) {
             Spacer(Modifier.height(24.dp))
@@ -178,7 +194,8 @@ private fun BlockContent(
 
         Spacer(Modifier.height(24.dp))
         GlassPill("Close $label", onClick = onClose, primary = true)
-        if (remainingUnlocks > 0) {
+        // Scheduled hard-block is deliberately not unlockable — the whole point is "no matter what".
+        if (!scheduled && remainingUnlocks > 0) {
             Spacer(Modifier.height(10.dp))
             Text(
                 "Use emergency unlock · $remainingUnlocks left",

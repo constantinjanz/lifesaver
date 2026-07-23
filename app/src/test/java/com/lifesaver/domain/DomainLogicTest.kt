@@ -145,6 +145,27 @@ class BaselineModelTest {
     }
 }
 
+class ScheduleBlockTest {
+    @Test fun withinDaytimeWindow() {
+        val win = BlockWindow(7 * 60, 10 * 60) // 07:00–10:00
+        assertTrue(ScheduleBlock.isBlocked(win, 8 * 60))
+        assertFalse(ScheduleBlock.isBlocked(win, 10 * 60)) // end exclusive
+        assertFalse(ScheduleBlock.isBlocked(win, 6 * 60 + 59))
+    }
+
+    @Test fun wrapsPastMidnight() {
+        val win = BlockWindow(22 * 60, 6 * 60) // 22:00–06:00
+        assertTrue(ScheduleBlock.isBlocked(win, 23 * 60))
+        assertTrue(ScheduleBlock.isBlocked(win, 2 * 60))
+        assertFalse(ScheduleBlock.isBlocked(win, 12 * 60))
+    }
+
+    @Test fun disabledWhenEqual() {
+        assertFalse(ScheduleBlock.isBlocked(BlockWindow(60, 60), 60))
+        assertFalse(ScheduleBlock.isBlocked(null, 60))
+    }
+}
+
 class DayKeysTest {
     @Test fun weekdayGroup() {
         assertEquals("weekday", DayKeys.weekdayGroup("2026-07-20")) // Monday

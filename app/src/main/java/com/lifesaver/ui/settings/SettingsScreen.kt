@@ -47,6 +47,7 @@ fun SettingsScreen(
     onChangeBudget: (String, Int) -> Unit,
     onChangeStrictness: (Strictness) -> Unit,
     onCancelPending: (Long) -> Unit,
+    onSetBlockedWindow: (String, com.lifesaver.domain.BlockWindow?) -> Unit,
     onOpenCheckin: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -72,6 +73,19 @@ fun SettingsScreen(
                 "Loosening (a bigger budget) takes effect after 24h. Tightening is instant.",
                 style = MaterialTheme.typography.bodySmall,
             )
+
+            Category("APP LOCKS")
+            Text(
+                "Pick hours an app is fully blocked — no budget, no emergency unlock, no way around it.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            DetectionConfig.targets.forEach { target ->
+                BlockWindowSetting(
+                    label = target.label,
+                    window = state.settings.blockedWindow(target.appId),
+                    onChange = { onSetBlockedWindow(target.appId, it) },
+                )
+            }
 
             Category("FRICTION")
             StrictnessSetting(state.settings.strictness, onChangeStrictness)
@@ -107,6 +121,55 @@ private fun BudgetSetting(label: String, current: Int, onCommit: (Int) -> Unit) 
             valueRange = 10f..120f,
             steps = (120 - 10) / 5 - 1,
         )
+    }
+}
+
+@Composable
+private fun BlockWindowSetting(
+    label: String,
+    window: com.lifesaver.domain.BlockWindow?,
+    onChange: (com.lifesaver.domain.BlockWindow?) -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val enabled = window != null
+    // Sensible default when turning it on (07:00–10:00).
+    val start = window?.startMinute ?: 7 * 60
+    val end = window?.endMinute ?: 10 * 60
+
+    fun pick(initial: Int, onPicked: (Int) -> Unit) {
+        android.app.TimePickerDialog(
+            context, { _, h, m -> onPicked(h * 60 + m) }, initial / 60, initial % 60, true,
+        ).show()
+    }
+
+    LifesaverCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            androidx.compose.material3.Switch(
+                checked = enabled,
+                onCheckedChange = { on -> onChange(if (on) com.lifesaver.domain.BlockWindow(start, end) else null) },
+            )
+        }
+        if (enabled) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                com.lifesaver.ui.components.glass.GlassPill(
+                    "From ${com.lifesaver.domain.ScheduleBlock.format(start)}",
+                    onClick = { pick(start) { onChange(com.lifesaver.domain.BlockWindow(it, end)) } },
+                )
+                com.lifesaver.ui.components.glass.GlassPill(
+                    "To ${com.lifesaver.domain.ScheduleBlock.format(end)}",
+                    onClick = { pick(end) { onChange(com.lifesaver.domain.BlockWindow(start, it)) } },
+                )
+            }
+            if (start == end) {
+                Text(
+                    "Start and end can't be the same.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Warning,
+                )
+            }
+        }
     }
 }
 

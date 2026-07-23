@@ -11,6 +11,7 @@ import com.lifesaver.data.Settings
 import com.lifesaver.detection.DetectionConfig
 import com.lifesaver.domain.DayKeys
 import com.lifesaver.domain.FrictionLadder
+import com.lifesaver.domain.ScheduleBlock
 import com.lifesaver.intervention.BlockActivity
 import com.lifesaver.intervention.InterventionActivity
 import kotlinx.coroutines.CoroutineScope
@@ -129,8 +130,21 @@ class LifesaverAccessibilityService : AccessibilityService() {
         // otherwise it re-fires every time the PiP window changes. We re-enforce when it goes full again.
         if (isTarget && !isTargetInSmallWindow(pkg)) {
             startSession(pkg, now)
-            if (enforcing()) decideOnEntry(pkg)
+            // Scheduled hard-block wins over everything (even an active emergency unlock).
+            if (isScheduledBlockedNow(pkg)) {
+                triggerBlock(pkg, scheduled = true)
+            } else if (enforcing()) {
+                decideOnEntry(pkg)
+            }
         }
+    }
+
+    /** True if [app] is inside its configured daily hard-block window right now (local time). */
+    private fun isScheduledBlockedNow(app: String): Boolean {
+        if (!settings.onboardingComplete) return false
+        val window = settings.blockedWindow(app) ?: return false
+        val now = java.time.LocalTime.now()
+        return ScheduleBlock.isBlocked(window, now.hour * 60 + now.minute)
     }
 
     /** True if [pkg]'s window covers only a small part of the screen (PiP / floating). Best-effort. */
@@ -220,6 +234,11 @@ class LifesaverAccessibilityService : AccessibilityService() {
         val enforce = enforcing()
         scope.launch {
             val a = accountant.accrue(app, dayKey, delta, fast, budget)
+            // Scheduled hard-block applies even during a pause; check it first.
+            if (isScheduledBlockedNow(app)) {
+                triggerBlock(app, scheduled = true)
+                return@launch
+            }
             if (enforce) {
                 if (a.exhausted) {
                     triggerBlock(app)
@@ -271,13 +290,14 @@ class LifesaverAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun triggerBlock(app: String) {
+    private fun triggerBlock(app: String, scheduled: Boolean = false) {
         if (!canEnforceNow(app)) return
         markEnforced(app)
         ownUiForeground = true
+        val untilMin = if (scheduled) settings.blockedWindow(app)?.endMinute ?: -1 else -1
         main.post {
-            // The app is done for today: end accounting for this session so a PiP window can't
-            // respawn the block via the periodic tick. Re-opening it full-screen re-blocks once.
+            // The app is done: end accounting for this session so a PiP window can't respawn the
+            // block via the periodic tick. Re-opening it full-screen re-blocks once.
             stopTicker()
             if (currentApp == app) currentApp = null
             val label = DetectionConfig.targetFor(app)?.label ?: app
@@ -285,6 +305,8 @@ class LifesaverAccessibilityService : AccessibilityService() {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 .putExtra(BlockActivity.EXTRA_APP_ID, app)
                 .putExtra(BlockActivity.EXTRA_APP_LABEL, label)
+                .putExtra(BlockActivity.EXTRA_SCHEDULED, scheduled)
+                .putExtra(BlockActivity.EXTRA_UNTIL_MIN, untilMin)
             startActivity(intent)
         }
     }

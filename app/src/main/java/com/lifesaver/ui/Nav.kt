@@ -103,6 +103,7 @@ fun LifesaverNavHost(
                 onChangeBudget = vm::changeBudget,
                 onChangeStrictness = vm::changeStrictness,
                 onCancelPending = vm::cancelPendingChange,
+                onSetBlockedWindow = vm::setBlockedWindow,
                 onOpenCheckin = { nav.navigate(Routes.CHECKIN) },
                 onBack = { nav.popBackStack() },
             )
