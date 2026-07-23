@@ -54,6 +54,7 @@ class LifesaverAccessibilityService : AccessibilityService() {
     // Debounce enforcement so PiP/window churn can't re-launch the block/intervention in a loop.
     @Volatile private var lastEnforceApp: String? = null
     @Volatile private var lastEnforceAtMs = 0L
+    @Volatile private var grayscaleActive = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -65,6 +66,21 @@ class LifesaverAccessibilityService : AccessibilityService() {
         settingsRepo = container.settings
         scope.launch { container.settings.settings.collect { settings = it } }
         startHeartbeat()
+        // Safety: clear any leftover grayscale from a previous crash so the phone isn't stuck gray.
+        Grayscale.setEnabled(this, false)
+    }
+
+    private fun updateGrayscale() {
+        val want = currentSurfaceFast && settings.grayscaleOnReels && currentApp != null && !ownUiForeground
+        if (want && !grayscaleActive) {
+            Grayscale.setEnabled(this, true); grayscaleActive = true
+        } else if (!want && grayscaleActive) {
+            Grayscale.setEnabled(this, false); grayscaleActive = false
+        }
+    }
+
+    private fun clearGrayscale() {
+        if (grayscaleActive) { Grayscale.setEnabled(this, false); grayscaleActive = false }
     }
 
     /** Integrity layer (§9.2): on connect, if we were dark for >10min, log a tracking gap; then
@@ -113,6 +129,7 @@ class LifesaverAccessibilityService : AccessibilityService() {
         currentSurfaceFast = result.isFast
         lastSurfaceFast = result.isFast
         lastSeenViewIds = result.seenViewIds
+        updateGrayscale()
 
         // Just landed on Reels/Shorts and it's limited → check the sub-budget right away so a full
         // block feels instant instead of waiting for the next accounting tick.
@@ -128,6 +145,8 @@ class LifesaverAccessibilityService : AccessibilityService() {
     private fun onForegroundPackage(pkg: String) {
         // A non-self app is on top, so our overlay is no longer covering anything.
         ownUiForeground = false
+        // Any window change means we may have left Reels — drop grayscale until re-detected.
+        clearGrayscale()
         lastForegroundPackage = pkg
         val isTarget = DetectionConfig.isTarget(pkg) && pkg in settings.enabledApps
         lastForegroundIsTarget = isTarget
@@ -345,6 +364,7 @@ class LifesaverAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         isConnected = false
+        clearGrayscale()
         endCurrentSession(System.currentTimeMillis())
         scope.cancel()
         return super.onUnbind(intent)

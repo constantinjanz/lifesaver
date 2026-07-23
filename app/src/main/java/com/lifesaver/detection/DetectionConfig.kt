@@ -44,6 +44,13 @@ object DetectionConfig {
 
     val targetPackages: Set<String> = targets.map { it.appId }.toSet()
 
+    /** 1-tap intentions shown at the pause (intention-gap). Last option is always the honest one. */
+    fun intentionsFor(appId: String?): List<String> = when (appId) {
+        INSTAGRAM -> listOf("Messages", "Someone's profile", "Search", "Just browsing")
+        YOUTUBE -> listOf("A specific video", "Search", "Just browsing")
+        else -> listOf("Something specific", "Just browsing")
+    }
+
     fun targetFor(appId: String?): Target? = targets.firstOrNull { it.appId == appId }
 
     fun isTarget(appId: String?): Boolean = appId != null && appId in targetPackages

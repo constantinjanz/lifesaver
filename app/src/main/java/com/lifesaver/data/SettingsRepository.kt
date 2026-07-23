@@ -40,6 +40,7 @@ class SettingsRepository(private val context: Context) {
         val BUDDY_PAIRING = stringPreferencesKey("buddy_pairing_id")
         val BUDDY_LABEL = stringPreferencesKey("buddy_label")
         val REELS_LIMITS = stringPreferencesKey("reels_limits_json")
+        val GRAYSCALE = booleanPreferencesKey("grayscale_on_reels")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -64,6 +65,7 @@ class SettingsRepository(private val context: Context) {
             blockedWindows = Settings.windowsFromJson(p[Keys.BLOCKED_WINDOWS]),
             buddyPairingId = p[Keys.BUDDY_PAIRING],
             buddyLabel = p[Keys.BUDDY_LABEL],
+            grayscaleOnReels = p[Keys.GRAYSCALE] ?: false,
         )
     }
 
@@ -82,6 +84,8 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setEnabledApps(apps: Set<String>) = edit { it[Keys.ENABLED] = apps }
+
+    suspend fun setGrayscaleOnReels(on: Boolean) = edit { it[Keys.GRAYSCALE] = on }
 
     /** Set the fast-surface (Reels/Shorts) sub-limit in minutes (0 = fully blocked), or null to remove it. */
     suspend fun setReelsLimit(appId: String, minutes: Int?) = edit { prefs ->

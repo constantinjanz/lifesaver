@@ -28,6 +28,7 @@ object Routes {
     const val LIFE = "life"
     const val REPORT = "report"
     const val BUDDY = "buddy"
+    const val FUTURE_SELF = "future_self"
 }
 
 @Composable
@@ -93,8 +94,10 @@ fun LifesaverNavHost(
                 onCancelPending = vm::cancelPendingChange,
                 onSetBlockedWindow = vm::setBlockedWindow,
                 onSetReelsLimit = vm::setReelsLimit,
+                onSetGrayscale = vm::setGrayscaleOnReels,
                 onOpenCheckin = { nav.navigate(Routes.CHECKIN) },
                 onOpenBuddy = { nav.navigate(Routes.BUDDY) },
+                onOpenFutureSelf = { nav.navigate(Routes.FUTURE_SELF) },
                 onBack = { nav.popBackStack() },
             )
         }
@@ -115,6 +118,9 @@ fun LifesaverNavHost(
                 onUnpair = vm::buddyUnpair,
                 onBack = { nav.popBackStack() },
             )
+        }
+        composable(Routes.FUTURE_SELF) {
+            com.lifesaver.ui.futureself.FutureSelfScreen(onBack = { nav.popBackStack() })
         }
         composable(Routes.DEBUG) {
             DebugScreen(permissions = state.permissions, onBack = { nav.popBackStack() })

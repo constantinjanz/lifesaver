@@ -25,6 +25,7 @@ data class ReportData(
     val lifeMinutesByArea: Map<String, Int>,
     val focusText: String?,
     val checkin: CheckinValues?,
+    val intentions: List<Pair<String, Int>> = emptyList(),
 ) {
     data class AppWeek(val label: String, val actualMs: Long, val baselineMs: Long)
     data class UnlockLine(val reason: String, val dayKey: String)

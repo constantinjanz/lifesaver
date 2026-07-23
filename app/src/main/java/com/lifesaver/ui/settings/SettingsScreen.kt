@@ -49,8 +49,10 @@ fun SettingsScreen(
     onCancelPending: (Long) -> Unit,
     onSetBlockedWindow: (String, com.lifesaver.domain.BlockWindow?) -> Unit,
     onSetReelsLimit: (String, Int?) -> Unit,
+    onSetGrayscale: (Boolean) -> Unit,
     onOpenCheckin: () -> Unit,
     onOpenBuddy: () -> Unit,
+    onOpenFutureSelf: () -> Unit,
     onBack: () -> Unit,
 ) {
     com.lifesaver.ui.components.glass.GlassScreen(title = "Settings", onBack = onBack, seed = 3) { padding ->
@@ -90,6 +92,7 @@ fun SettingsScreen(
                     onChange = { onSetReelsLimit(target.appId, it) },
                 )
             }
+            GrayscaleSetting(enabled = state.settings.grayscaleOnReels, onChange = onSetGrayscale)
 
             Category("APP LOCKS")
             Text(
@@ -124,6 +127,17 @@ fun SettingsScreen(
                 }
             }
 
+            Category("NUDGES")
+            LifesaverCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Future-self note", style = MaterialTheme.typography.titleMedium)
+                        Text("A voice message to yourself, played at the pause.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    FlatButton("Record", onClick = onOpenFutureSelf)
+                }
+            }
+
             Category("WEEKLY")
             LifesaverCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -155,6 +169,41 @@ private fun BudgetSetting(label: String, current: Int, onCommit: (Int) -> Unit) 
             valueRange = 10f..120f,
             steps = (120 - 10) / 5 - 1,
         )
+    }
+}
+
+@Composable
+private fun GrayscaleSetting(enabled: Boolean, onChange: (Boolean) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val available = remember { com.lifesaver.service.Grayscale.isAvailable(context) }
+    LifesaverCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Grayscale on Reels/Shorts", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Drains the colour out of the fast feed — far less pull, no hard block.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            androidx.compose.material3.Switch(
+                checked = enabled && available,
+                enabled = available,
+                onCheckedChange = onChange,
+            )
+        }
+        if (!available) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Needs one adb command (personal build). Connect the phone and run:",
+                style = MaterialTheme.typography.bodySmall, color = Warning,
+            )
+            Text(
+                "adb shell pm grant com.lifesaver android.permission.WRITE_SECURE_SETTINGS",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                color = Accent,
+            )
+        }
     }
 }
 

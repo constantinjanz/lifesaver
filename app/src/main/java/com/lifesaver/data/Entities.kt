@@ -27,6 +27,8 @@ data class InterventionEvent(
     val latencyMs: Long? = null,
     /** feed | reels_shorts | unknown — surface at the moment of the event. */
     val surface: String = "unknown",
+    /** What the user said they came for (intention gap, §8 stage 2). null = didn't pick. */
+    val intention: String? = null,
 )
 
 /** Per-app per-day usage accounting. reelsShortsMs already reflects raw seconds on the

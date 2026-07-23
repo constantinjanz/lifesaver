@@ -95,6 +95,31 @@ fun ReportScreen(
                 }
             }
 
+            if (data.intentions.isNotEmpty()) {
+                GlassPanel {
+                    Text("Why you opened them", style = MaterialTheme.typography.bodyLarge)
+                    Spacer(Modifier.height(6.dp))
+                    val total = data.intentions.sumOf { it.second }.coerceAtLeast(1)
+                    data.intentions.forEachIndexed { i, (intention, count) ->
+                        if (i > 0) GlassRowDivider()
+                        val pct = count * 100 / total
+                        GlassRow(
+                            intention,
+                            "$pct%",
+                            valueColor = if (intention.equals("Just browsing", true)) Danger else Accent,
+                        )
+                    }
+                    val browsing = data.intentions.firstOrNull { it.first.equals("Just browsing", true) }?.second ?: 0
+                    if (browsing > 0) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "${browsing * 100 / total}% of your opens had no real goal. That's the scroll talking.",
+                            style = MaterialTheme.typography.bodySmall, color = TextSecondary,
+                        )
+                    }
+                }
+            }
+
             CheckinBlock(data.checkin, onSubmitCheckin)
         }
     }

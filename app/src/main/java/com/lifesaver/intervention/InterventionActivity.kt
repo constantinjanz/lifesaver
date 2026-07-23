@@ -66,6 +66,7 @@ class InterventionActivity : ComponentActivity() {
     private var frictionSeconds: Int = 5
     private var triggeredAt: Long = 0
     private var recorded = false
+    @Volatile private var selectedIntention: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,6 +85,8 @@ class InterventionActivity : ComponentActivity() {
                         openIndex = openIndex,
                         frictionSeconds = frictionSeconds,
                         minutesLeft = minutesLeft,
+                        intentions = com.lifesaver.detection.DetectionConfig.intentionsFor(appId),
+                        onPickIntention = { selectedIntention = it },
                         onContinue = { record("continued"); finish() },
                         onDismiss = { record("dismissed"); goHome() },
                         onRedirect = ::redirectTo,
@@ -112,6 +115,7 @@ class InterventionActivity : ComponentActivity() {
             action = action,
             redirectTarget = redirectTarget,
             latencyMs = System.currentTimeMillis() - triggeredAt,
+            intention = selectedIntention,
         )
         val container = LifesaverApp.instance.container
         container.appScope.launch { container.database.interventionDao().insert(event) }
@@ -146,12 +150,19 @@ private fun InterventionContent(
     openIndex: Int,
     frictionSeconds: Int,
     minutesLeft: Int,
+    intentions: List<String>,
+    onPickIntention: (String?) -> Unit,
     onContinue: () -> Unit,
     onDismiss: () -> Unit,
     onRedirect: (RedirectApp) -> Unit,
     onMicroComplete: () -> Unit,
 ) {
     var showMicro by remember { mutableStateOf(false) }
+    var pickedIntention by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val hasNote = remember { com.lifesaver.service.FutureSelf.exists(context) }
+    // Your own voice, right at the moment you reach for the feed.
+    LaunchedEffect(Unit) { if (hasNote) com.lifesaver.service.FutureSelf.play(context) }
     val settings by produceState(initialValue = null as com.lifesaver.data.Settings?) {
         value = LifesaverApp.instance.container.settings.current()
     }
@@ -227,6 +238,23 @@ private fun InterventionContent(
         }
 
         GlassPanel(modifier = Modifier.fillMaxWidth()) {
+            if (intentions.isNotEmpty()) {
+                Text("What are you here for?", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    intentions.forEach { opt ->
+                        GlassPill(
+                            opt,
+                            onClick = { pickedIntention = opt; onPickIntention(opt) },
+                            primary = opt == pickedIntention,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
             if (redirects.isNotEmpty()) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     redirects.forEach { entry ->
@@ -241,6 +269,10 @@ private fun InterventionContent(
                     }
                 }
                 Spacer(Modifier.height(14.dp))
+            }
+            if (hasNote) {
+                GlassPill("Hear your note", onClick = { com.lifesaver.service.FutureSelf.play(context) }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(10.dp))
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 GlassPill("Micro-action", onClick = { showMicro = true }, modifier = Modifier.weight(1f))

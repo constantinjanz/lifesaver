@@ -60,6 +60,8 @@ data class Settings(
     // Buddy approval (Supabase-backed): the paired buddy grants extra time via WhatsApp + PIN.
     val buddyPairingId: String? = null,
     val buddyLabel: String? = null,
+    /** Desaturate the screen while on Reels/Shorts (needs WRITE_SECURE_SETTINGS via adb). */
+    val grayscaleOnReels: Boolean = false,
 ) {
     val buddyPaired: Boolean get() = !buddyPairingId.isNullOrBlank()
     fun budgetMin(appId: String): Int = budgetMinByApp[appId] ?: 30

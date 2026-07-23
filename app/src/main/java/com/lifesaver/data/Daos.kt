@@ -32,7 +32,15 @@ interface InterventionDao {
 
     @Query("SELECT COUNT(*) FROM intervention_events WHERE dayKey >= :fromDayKey AND action IN ('redirect','micro_action')")
     suspend fun substitutionsSince(fromDayKey: String): Int
+
+    @Query(
+        "SELECT intention AS intention, COUNT(*) AS count FROM intervention_events " +
+            "WHERE dayKey >= :fromDayKey AND intention IS NOT NULL GROUP BY intention ORDER BY count DESC",
+    )
+    suspend fun intentionsSince(fromDayKey: String): List<IntentionCount>
 }
+
+data class IntentionCount(val intention: String, val count: Int)
 
 @Dao
 interface UsageDao {

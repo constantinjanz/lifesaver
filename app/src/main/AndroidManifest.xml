@@ -4,6 +4,12 @@
 
     <!-- Buddy approval backend (Supabase edge function). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Grayscale-on-Reels: system color correction toggle. Granted once via adb (personal build). -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Future-self voice note (recorded in-app, played at the intervention). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Foreground detection / baseline / reconciliation (§3.3, §5). Special permission,
          granted via the Usage Access settings screen. -->
     <uses-permission

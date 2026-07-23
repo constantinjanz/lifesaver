@@ -241,6 +241,10 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { container.settings.setReelsLimit(appId, minutes) }
     }
 
+    fun setGrayscaleOnReels(on: Boolean) {
+        viewModelScope.launch { container.settings.setGrayscaleOnReels(on) }
+    }
+
     // --- Buddy approval ---
 
     /** Create a pairing and persist it; returns the setup URL to send the buddy via WhatsApp. */
@@ -387,11 +391,12 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
             val checkin = db.checkinDao().latest()?.let {
                 com.lifesaver.domain.ReportData.CheckinValues(it.control, it.satisfaction, it.impulse)
             }
+            val intentions = db.interventionDao().intentionsSince(weekKey).map { it.intention to it.count }
             com.lifesaver.domain.ReportData(
                 weekKey = weekKey, perApp = perApp, savedMs = saved,
                 substitutionPct = SubstitutionRate.percent(subs, total),
                 unlocks = unlocks, trackingGapMs = gapMs, lifeMinutesByArea = lifeByArea,
-                focusText = focusText, checkin = checkin,
+                focusText = focusText, checkin = checkin, intentions = intentions,
             )
         }
 
