@@ -30,9 +30,14 @@ object SurfaceDetector {
             val (node, depth) = stack.removeLast()
             visited++
 
-            considerToken(seen, markers, "id:", node.viewIdResourceName?.substringAfterLast('/'))?.let { if (it) isFast = true }
-            considerToken(seen, markers, "cd:", node.contentDescription?.toString())?.let { if (it) isFast = true }
-            considerToken(seen, markers, "tx:", node.text?.toString())?.let { if (it) isFast = true }
+            // Only match/collect VISIBLE nodes. Instagram preloads the adjacent Reels tab off-screen
+            // while you're on the feed/stories, so its "Create a reel" etc. is in the tree but not
+            // visible — counting it would wrongly block the feed. isVisibleToUser filters that out.
+            if (node.isVisibleToUser) {
+                considerToken(seen, markers, "id:", node.viewIdResourceName?.substringAfterLast('/'))?.let { if (it) isFast = true }
+                considerToken(seen, markers, "cd:", node.contentDescription?.toString())?.let { if (it) isFast = true }
+                considerToken(seen, markers, "tx:", node.text?.toString())?.let { if (it) isFast = true }
+            }
 
             if (depth < MAX_DEPTH) {
                 for (i in 0 until node.childCount) {
