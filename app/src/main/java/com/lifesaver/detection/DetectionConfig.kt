@@ -29,15 +29,22 @@ object DetectionConfig {
         Target(
             appId = INSTAGRAM,
             label = "Instagram",
-            // e.g. clips_viewer_view_pager, clips_tab, reels containers.
-            fastSurfaceViewIdMarkers = listOf("clips_", "reels_"),
+            // Modern IG has no view IDs (Litho) — match content-descriptions unique to the Reels
+            // VIEWER (not the feed): the create-reel button, the reshare-count rail, the audio pill.
+            // Old view-id markers kept for older versions. NOT "reels" alone — the bottom-nav Reels
+            // tab is on every screen and would block the feed too.
+            fastSurfaceViewIdMarkers = listOf(
+                "clips_", "reels_", "create a reel", "reshare number", "remix this reel",
+            ),
             fastSurfaceName = "Reels",
         ),
         Target(
             appId = YOUTUBE,
             label = "YouTube",
-            // e.g. reel_recycler, reel_player_page_container, shorts markers.
-            fastSurfaceViewIdMarkers = listOf("reel_", "shorts_"),
+            // reel_recycler / reel_player markers, plus Shorts-player content-descriptions.
+            fastSurfaceViewIdMarkers = listOf(
+                "reel_", "shorts_", "shorts player", "short remix", "remix this short",
+            ),
             fastSurfaceName = "Shorts",
         ),
     )
