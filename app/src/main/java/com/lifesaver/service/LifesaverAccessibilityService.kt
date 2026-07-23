@@ -109,35 +109,43 @@ class LifesaverAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         if (pkg == applicationContext.packageName) return
         when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> onForegroundPackage(pkg)
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> onContentChanged(pkg)
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> { onForegroundPackage(pkg); maybeScan(pkg, event) }
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> maybeScan(pkg, event)
             else -> Unit
         }
     }
 
-    /** Debounced Reels/Shorts detection while inside a target app (§3.4). */
-    private fun onContentChanged(pkg: String) {
-        if (pkg != currentApp || ownUiForeground) return
+    /**
+     * Scans a target app's node tree for the Reels/Shorts surface (§3.4). Runs on window-state and
+     * content-changed events, keyed only on the target package (not the session bookkeeping) and
+     * with an event.source fallback when rootInActiveWindow is unavailable — so detection and the
+     * debug view-id list are as robust as possible. Enforcement only fires for the current session.
+     */
+    private fun maybeScan(pkg: String, event: AccessibilityEvent) {
+        if (!DetectionConfig.isTarget(pkg) || ownUiForeground) return
         val target = DetectionConfig.targetFor(pkg) ?: return
         val now = System.currentTimeMillis()
         if (now - lastDetectMs < DETECT_DEBOUNCE_MS) return
         lastDetectMs = now
-        val root = rootInActiveWindow ?: return
-        val result = SurfaceDetector.detect(root, target)
-        @Suppress("DEPRECATION") root.recycle()
-        val wasFast = currentSurfaceFast
-        currentSurfaceFast = result.isFast
-        lastSurfaceFast = result.isFast
-        lastSeenViewIds = result.seenViewIds
-        updateGrayscale()
 
-        // Just landed on Reels/Shorts and it's limited → check the sub-budget right away so a full
-        // block feels instant instead of waiting for the next accounting tick.
-        if (result.isFast && !wasFast && enforcing() && settings.reelsLimited(pkg)) {
-            val app = pkg
-            scope.launch {
-                val reelsMs = accountant.reelsToday(app, DayKeys.todayKey())
-                if (reelsMs >= settings.reelsLimitMs(app)) triggerBlock(app, reels = true)
+        val root = rootInActiveWindow ?: event.source
+        if (root == null) { lastScanSummary = "no window root for $pkg"; return }
+        val result = SurfaceDetector.detect(root, target)
+        lastSeenViewIds = result.seenViewIds
+        lastSurfaceFast = result.isFast
+        lastScanSummary = "$pkg · ids=${result.seenViewIds.size} · fast=${result.isFast}"
+
+        if (pkg == currentApp) {
+            val wasFast = currentSurfaceFast
+            currentSurfaceFast = result.isFast
+            updateGrayscale()
+            // Just landed on Reels/Shorts and it's limited → check the sub-budget right away.
+            if (result.isFast && !wasFast && enforcing() && settings.reelsLimited(pkg)) {
+                val app = pkg
+                scope.launch {
+                    val reelsMs = accountant.reelsToday(app, DayKeys.todayKey())
+                    if (reelsMs >= settings.reelsLimitMs(app)) triggerBlock(app, reels = true)
+                }
             }
         }
     }
@@ -380,5 +388,6 @@ class LifesaverAccessibilityService : AccessibilityService() {
         @Volatile var lastForegroundIsTarget: Boolean = false; private set
         @Volatile var lastSurfaceFast: Boolean = false; private set
         @Volatile var lastSeenViewIds: List<String> = emptyList(); private set
+        @Volatile var lastScanSummary: String = "no scan yet"; private set
     }
 }
