@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -39,23 +42,23 @@ import com.lifesaver.ui.theme.clickableNoRipple
 import kotlinx.coroutines.flow.Flow
 
 @Composable
-fun LifeScreen(
+fun LifePage(
     logsFlow: Flow<List<LifeLog>>,
     focusArea: String?,
     focusTarget: Int,
     onLog: (String, Int) -> Unit,
     onSetFocus: (String, Int) -> Unit,
-    onBack: () -> Unit,
 ) {
     val logs by logsFlow.collectAsStateWithLifecycle(initialValue = emptyList<LifeLog>())
     var minutes by remember { mutableIntStateOf(30) }
+    val topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
 
-    GlassScreen(title = "Life", onBack = onBack, seed = 2) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp).padding(top = topInset + 8.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text("Life", style = MaterialTheme.typography.headlineSmall)
             // Weekly focus ring.
             if (focusArea != null && focusTarget > 0) {
                 val done = logs.count { it.area == focusArea }
@@ -95,7 +98,6 @@ fun LifeScreen(
                 }
             }
         }
-    }
 }
 
 @Composable

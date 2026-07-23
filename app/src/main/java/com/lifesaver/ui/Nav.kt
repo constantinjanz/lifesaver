@@ -13,7 +13,6 @@ import androidx.navigation.compose.rememberNavController
 import com.lifesaver.service.Permissions
 import com.lifesaver.ui.checkin.CheckinScreen
 import com.lifesaver.ui.components.PlaceholderScreen
-import com.lifesaver.ui.dashboard.DashboardScreen
 import com.lifesaver.ui.debug.DebugScreen
 import com.lifesaver.ui.onboarding.OnboardingScreen
 import com.lifesaver.ui.settings.SettingsScreen
@@ -63,32 +62,20 @@ fun LifesaverNavHost(
             )
         }
         composable(Routes.DASHBOARD) {
-            DashboardScreen(
+            val lifeFlow = remember { vm.lifeLogsThisWeek() }
+            com.lifesaver.ui.home.HomeScreen(
                 state = state,
                 onEditPlans = { nav.navigate(Routes.PLANS) },
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                 onOpenDebug = { nav.navigate(Routes.DEBUG) },
                 onOpenReport = { nav.navigate(Routes.REPORT) },
                 onFixPermissions = { nav.navigate(Routes.ONBOARDING) },
-                onSelectTab = { i ->
-                    when (i) {
-                        1 -> nav.navigate(Routes.PATTERNS)
-                        2 -> nav.navigate(Routes.LIFE)
-                    }
-                },
-            )
-        }
-        composable(Routes.PATTERNS) {
-            com.lifesaver.ui.patterns.PatternsScreen(loadPatterns = vm::loadPatterns, onBack = { nav.popBackStack() })
-        }
-        composable(Routes.LIFE) {
-            com.lifesaver.ui.life.LifeScreen(
-                logsFlow = vm.lifeLogsThisWeek(),
-                focusArea = state.settings.weeklyFocusArea,
-                focusTarget = state.settings.weeklyFocusTarget,
-                onLog = vm::logLife,
+                loadPatterns = vm::loadPatterns,
+                lifeLogsFlow = lifeFlow,
+                lifeFocusArea = state.settings.weeklyFocusArea,
+                lifeFocusTarget = state.settings.weeklyFocusTarget,
+                onLogLife = vm::logLife,
                 onSetFocus = vm::setWeeklyFocus,
-                onBack = { nav.popBackStack() },
             )
         }
         composable(Routes.REPORT) {

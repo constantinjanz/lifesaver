@@ -55,66 +55,47 @@ import com.lifesaver.ui.theme.TextPrimary
 import com.lifesaver.ui.theme.TextSecondary
 import com.lifesaver.ui.theme.clickableNoRipple
 
-val DOCK_ITEMS = listOf(
-    DockItem(Icons.Filled.GridView, "Cockpit"),
-    DockItem(Icons.Filled.BarChart, "Patterns"),
-    DockItem(Icons.Filled.Spa, "Life"),
-)
-
+/** The cockpit as a swipe page (background + dock live in HomeScreen). */
 @Composable
-fun DashboardScreen(
+fun CockpitPage(
     state: DashboardState,
     onEditPlans: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenDebug: () -> Unit,
     onOpenReport: () -> Unit,
     onFixPermissions: () -> Unit,
-    onSelectTab: (Int) -> Unit,
 ) {
-    GlassBackground(seed = 0, drift = true) {
-        val topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(top = topInset + 8.dp, bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                TopRow(state, onOpenSettings, onOpenReport, onOpenDebug)
+    val topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(top = topInset + 8.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        TopRow(state, onOpenSettings, onOpenReport, onOpenDebug, onEditPlans)
 
-                if (state.permissions.values.any { !it } && state.permissions.isNotEmpty()) {
-                    ActionCard("Setup incomplete", "Some permissions are missing — tap to finish.", onFixPermissions)
-                }
-                if (state.pendingChanges.isNotEmpty()) {
-                    ActionCard(
-                        "Pending changes",
-                        "${state.pendingChanges.size} change${if (state.pendingChanges.size == 1) "" else "s"} waiting on the 24h rule.",
-                        onOpenSettings,
-                    )
-                }
-
-                HeroRing(state)
-                BudgetTiles(state)
-                StreakAndSaved(state)
-                SubstitutionCard(state)
-            }
-
-            FloatingDock(
-                items = DOCK_ITEMS,
-                selected = 0,
-                onSelect = onSelectTab,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 28.dp),
+        if (state.permissions.values.any { !it } && state.permissions.isNotEmpty()) {
+            ActionCard("Setup incomplete", "Some permissions are missing — tap to finish.", onFixPermissions)
+        }
+        if (state.pendingChanges.isNotEmpty()) {
+            ActionCard(
+                "Pending changes",
+                "${state.pendingChanges.size} change${if (state.pendingChanges.size == 1) "" else "s"} waiting on the 24h rule.",
+                onOpenSettings,
             )
         }
+
+        HeroRing(state)
+        BudgetTiles(state)
+        StreakAndSaved(state)
+        SubstitutionCard(state)
     }
 }
 
 @Composable
-private fun TopRow(state: DashboardState, onSettings: () -> Unit, onReport: () -> Unit, onDebug: () -> Unit) {
+private fun TopRow(state: DashboardState, onSettings: () -> Unit, onReport: () -> Unit, onDebug: () -> Unit, onPlans: () -> Unit) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -134,6 +115,7 @@ private fun TopRow(state: DashboardState, onSettings: () -> Unit, onReport: () -
                 modifier = Modifier.clickableNoRipple(onClick = { menuOpen = true }).padding(8.dp),
             )
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(text = { Text("If-then plans") }, onClick = { menuOpen = false; onPlans() })
                 DropdownMenuItem(text = { Text("Weekly report") }, onClick = { menuOpen = false; onReport() })
                 DropdownMenuItem(text = { Text("Settings") }, onClick = { menuOpen = false; onSettings() })
                 DropdownMenuItem(text = { Text("Debug") }, onClick = { menuOpen = false; onDebug() })

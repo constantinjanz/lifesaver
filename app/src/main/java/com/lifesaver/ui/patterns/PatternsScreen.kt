@@ -6,8 +6,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -26,14 +29,15 @@ import com.lifesaver.ui.theme.TextCaption
 import com.lifesaver.ui.theme.TextSecondary
 
 @Composable
-fun PatternsScreen(loadPatterns: suspend () -> PatternsData, onBack: () -> Unit) {
+fun PatternsPage(loadPatterns: suspend () -> PatternsData) {
     val data by produceState(PatternsData.EMPTY) { value = loadPatterns() }
-    GlassScreen(title = "Patterns", onBack = onBack, seed = 1) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
+    val topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp).padding(top = topInset + 8.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text("Patterns", style = MaterialTheme.typography.headlineSmall)
             GlassPanel {
                 Text("When you scroll", style = MaterialTheme.typography.bodyLarge)
                 Text("Hour × weekday · last ${data.daysCovered} days", style = MaterialTheme.typography.bodySmall, color = TextCaption)
@@ -59,7 +63,6 @@ fun PatternsScreen(loadPatterns: suspend () -> PatternsData, onBack: () -> Unit)
                 Text("you reached for it before 9am", style = MaterialTheme.typography.bodySmall, color = TextCaption)
             }
         }
-    }
 }
 
 @Composable
