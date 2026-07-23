@@ -28,19 +28,22 @@ import androidx.compose.ui.unit.dp
 import com.lifesaver.LifesaverApp
 import com.lifesaver.data.IfThenPlan
 import com.lifesaver.data.RedirectApp
+import com.lifesaver.domain.MissionTime
 import com.lifesaver.service.InstalledApps
 import com.lifesaver.ui.components.AppIcon
 import com.lifesaver.ui.components.AppPickerDialog
 import com.lifesaver.ui.components.FlatButton
 import com.lifesaver.ui.components.LifesaverCard
+import com.lifesaver.ui.theme.Accent
 import com.lifesaver.ui.theme.TextCaption
 import com.lifesaver.ui.theme.TextSecondary
 import com.lifesaver.ui.theme.clickableNoRipple
 
 /**
- * Editor for the mission pool (the activities the pause offers) + redirect apps. Missions are a
- * flat, add-as-many list — the pause quotes ONE at random each time, so more missions = more
- * variety. Stored as if-then plans (context "mission"). Used by onboarding and the plans screen.
+ * Editor for time-of-day missions + redirect apps. Missions are grouped into Morning / Daytime /
+ * Evening / Night; each is an add-as-many list. The pause quotes ONE at random from the bucket
+ * matching the current time, so suggestions are always doable right now. Stored as if-then plans
+ * (context = the bucket key). Used by onboarding and the plans screen.
  */
 @Composable
 fun PlanEditor(
@@ -49,63 +52,72 @@ fun PlanEditor(
     onPlansChange: (List<IfThenPlan>) -> Unit,
     onRedirectsChange: (List<RedirectApp>) -> Unit,
 ) {
-    val missions: SnapshotStateList<String> = remember {
-        plans.map { it.text }.ifEmpty { listOf("") }.toMutableStateList()
+    // One editable list per time bucket, seeded from existing plans.
+    val buckets: Map<String, SnapshotStateList<String>> = remember {
+        MissionTime.BUCKETS.associate { (key, _) ->
+            key to plans.filter { it.context == key }.map { it.text }.toMutableStateList()
+        }
     }
 
     fun emit() {
-        val list = missions.map { it.trim() }.filter { it.isNotBlank() }
-            .map { IfThenPlan(context = "mission", label = "Mission", text = it) }
+        val list = MissionTime.BUCKETS.flatMap { (key, _) ->
+            buckets.getValue(key).map { it.trim() }.filter { it.isNotBlank() }
+                .map { IfThenPlan(context = key, label = MissionTime.label(key), text = it) }
+        }
         onPlansChange(list)
     }
 
     Column {
-        Text("Your missions", style = MaterialTheme.typography.headlineSmall)
+        Text("Missions by time of day", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Short things to do instead of scrolling. Add as many as you like — the pause hands you one at random each time.",
+            "Add things you can actually do at that hour. The pause hands you one at random from the current slot — add as many as you like.",
             style = MaterialTheme.typography.bodyMedium, color = TextSecondary,
         )
         Spacer(Modifier.height(12.dp))
 
-        missions.forEachIndexed { i, value ->
-            LifesaverCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = value,
-                        onValueChange = { missions[i] = it; emit() },
-                        placeholder = { Text(HINTS[i % HINTS.size]) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                    )
-                    Spacer(Modifier.size(4.dp))
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "Remove",
-                        tint = TextCaption,
-                        modifier = Modifier.size(28.dp).clickableNoRipple(
-                            onClick = { missions.removeAt(i); if (missions.isEmpty()) missions.add(""); emit() },
-                        ),
-                    )
+        MissionTime.BUCKETS.forEachIndexed { bi, (key, label) ->
+            val list = buckets.getValue(key)
+            Text(label, style = MaterialTheme.typography.titleMedium, color = Accent)
+            Spacer(Modifier.height(6.dp))
+            list.forEachIndexed { i, value ->
+                LifesaverCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = value,
+                            onValueChange = { list[i] = it; emit() },
+                            placeholder = { Text(hintFor(key, i)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                        )
+                        Spacer(Modifier.size(4.dp))
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Remove",
+                            tint = TextCaption,
+                            modifier = Modifier.size(28.dp).clickableNoRipple(
+                                onClick = { list.removeAt(i); emit() },
+                            ),
+                        )
+                    }
                 }
+                Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(8.dp))
+            FlatButton("Add $label mission", onClick = { list.add("") })
+            if (bi < MissionTime.BUCKETS.lastIndex) Spacer(Modifier.height(16.dp))
         }
-        FlatButton("Add mission", onClick = { missions.add("") })
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
         RedirectSection(redirects, onRedirectsChange)
     }
 }
 
-private val HINTS = listOf(
-    "Sketch for 5 minutes",
-    "Text someone you miss",
-    "Step outside / sunlight",
-    "Put on one song and just listen",
-    "Read a page of your book",
-    "10 push-ups",
-)
+private fun hintFor(bucket: String, i: Int): String = when (bucket) {
+    MissionTime.MORNING -> listOf("Make coffee & plan the day", "10 minutes of sunlight", "Stretch")
+    MissionTime.DAYTIME -> listOf("Text someone you miss", "Step outside", "Read a page")
+    MissionTime.EVENING -> listOf("Sketch for 5 minutes", "Put on one song", "Cook something")
+    else -> listOf("Wind down — no screens", "Journal one line", "Lights out")
+}.let { it[i % it.size] }
 
 @Composable
 private fun RedirectSection(

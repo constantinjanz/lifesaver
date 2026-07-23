@@ -191,10 +191,12 @@ private fun InterventionContent(
         onDispose { player.value?.let { runCatching { it.stop(); it.release() } } }
     }
 
-    // Mission = one of your own if-then plans, picked at random for this pause.
+    // Mission = a random one of YOUR missions for the current time of day (falls back to any).
     val planText = remember(settings) {
         val plans = settings?.ifThenPlans ?: emptyList()
-        if (plans.isEmpty()) null else plans[kotlin.random.Random.nextInt(plans.size)].text
+        val bucket = com.lifesaver.domain.MissionTime.bucketForHour(java.time.LocalTime.now().hour)
+        val pool = plans.filter { it.context == bucket }.ifEmpty { plans }
+        if (pool.isEmpty()) null else pool[kotlin.random.Random.nextInt(pool.size)].text
     }
 
     val redirects by produceState(initialValue = emptyList<RedirectEntry>(), settings) {

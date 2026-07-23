@@ -29,13 +29,12 @@ object DetectionConfig {
         Target(
             appId = INSTAGRAM,
             label = "Instagram",
-            // Modern IG has no view IDs (Litho) — match content-descriptions unique to the Reels
-            // VIEWER (not the feed): the create-reel button, the reshare-count rail, the audio pill.
-            // Old view-id markers kept for older versions. NOT "reels" alone — the bottom-nav Reels
-            // tab is on every screen and would block the feed too.
-            fastSurfaceViewIdMarkers = listOf(
-                "clips_", "reels_", "create a reel", "reshare number", "remix this reel",
-            ),
+            // Modern IG has no view IDs (Litho) — match content-descriptions unique to the immersive
+            // Reels VIEWER (the Reels tab), NOT things a reel embedded in the home feed also shows.
+            // "create a reel" is the Reels-tab top-bar button and is absent from feed reel cards.
+            // Deliberately NOT "reshare number"/"reels": those also appear on feed-embedded reels /
+            // the bottom-nav tab and would wrongly block the normal feed.
+            fastSurfaceViewIdMarkers = listOf("clips_", "reels_", "create a reel"),
             fastSurfaceName = "Reels",
         ),
         Target(
