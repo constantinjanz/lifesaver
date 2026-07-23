@@ -128,8 +128,13 @@ class LifesaverAccessibilityService : AccessibilityService() {
         if (now - lastDetectMs < DETECT_DEBOUNCE_MS) return
         lastDetectMs = now
 
-        val root = rootInActiveWindow ?: event.source
-        if (root == null) { lastScanSummary = "no window root for $pkg"; return }
+        // Only scan when the target app is the ACTUAL active window — otherwise a background event
+        // during a transition (recents / home) makes us scan the wrong screen and overwrite the
+        // real capture. This is why the debug list showed the app-switcher, not Instagram.
+        val root = rootInActiveWindow
+        if (root == null) { lastScanSummary = "no active window (waiting for $pkg)"; return }
+        val rootPkg = root.packageName?.toString()
+        if (rootPkg != pkg) { lastScanSummary = "active=$rootPkg (waiting for $pkg on top)"; return }
         val result = SurfaceDetector.detect(root, target)
         lastSeenViewIds = result.seenTokens
         lastSurfaceFast = result.isFast
