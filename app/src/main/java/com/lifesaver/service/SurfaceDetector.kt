@@ -5,17 +5,17 @@ import com.lifesaver.detection.DetectionConfig
 
 /**
  * Inspects the active window's node tree for the 2x "fast feed" surface — Reels / Shorts (PRD §3.4).
- * Markers come entirely from [DetectionConfig]. Traversal is bounded (node + depth caps) so it stays
- * cheap enough to run on debounced content-changed events. If confidence is unclear it reports NOT
- * fast, so we never over-punish a false positive (§3.4).
+ * Modern Instagram/YouTube render with Litho/Compose and expose almost no classic view IDs, so we
+ * scan view ids AND content-descriptions AND text, matching the markers from [DetectionConfig]
+ * against all of them. Bounded (node + depth caps) so it stays cheap on debounced events.
  */
 object SurfaceDetector {
 
-    private const val MAX_NODES = 500
+    private const val MAX_NODES = 800
     private const val MAX_DEPTH = 40
-    private const val MAX_SEEN_IDS = 60
+    private const val MAX_SEEN = 80
 
-    data class Result(val isFast: Boolean, val seenViewIds: List<String>)
+    data class Result(val isFast: Boolean, val seenTokens: List<String>)
 
     fun detect(root: AccessibilityNodeInfo?, target: DetectionConfig.Target): Result {
         if (root == null) return Result(false, emptyList())
@@ -24,32 +24,36 @@ object SurfaceDetector {
         var isFast = false
         var visited = 0
 
-        // Iterative DFS with an explicit stack of (node, depth). We must recycle nodes we obtain.
         val stack = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
         stack.addLast(root to 0)
         while (stack.isNotEmpty() && visited < MAX_NODES) {
             val (node, depth) = stack.removeLast()
             visited++
-            val id = node.viewIdResourceName
-            if (id != null) {
-                val shortId = id.substringAfterLast('/')
-                if (seen.size < MAX_SEEN_IDS) seen.add(shortId)
-                if (!isFast && markers.any { shortId.contains(it, ignoreCase = true) }) {
-                    isFast = true
-                }
-            }
+
+            considerToken(seen, markers, "id:", node.viewIdResourceName?.substringAfterLast('/'))?.let { if (it) isFast = true }
+            considerToken(seen, markers, "cd:", node.contentDescription?.toString())?.let { if (it) isFast = true }
+            considerToken(seen, markers, "tx:", node.text?.toString())?.let { if (it) isFast = true }
+
             if (depth < MAX_DEPTH) {
                 for (i in 0 until node.childCount) {
                     val child = node.getChild(i) ?: continue
                     stack.addLast(child to depth + 1)
                 }
             }
-            // Do not recycle `root` (owned by caller); recycle traversed children.
-            if (node !== root) {
-                @Suppress("DEPRECATION")
-                node.recycle()
-            }
         }
         return Result(isFast, seen.toList())
+    }
+
+    /** Records a token (capped) and returns true if it matches a fast marker. */
+    private fun considerToken(
+        seen: LinkedHashSet<String>,
+        markers: List<String>,
+        prefix: String,
+        raw: String?,
+    ): Boolean? {
+        val v = raw?.trim()?.replace('\n', ' ')?.take(48) ?: return null
+        if (v.isEmpty()) return null
+        if (seen.size < MAX_SEEN) seen.add("$prefix$v")
+        return markers.any { v.contains(it, ignoreCase = true) }
     }
 }

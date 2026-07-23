@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -18,34 +20,27 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.lifesaver.LifesaverApp
 import com.lifesaver.data.IfThenPlan
 import com.lifesaver.data.RedirectApp
-import com.lifesaver.domain.PlanMatcher
 import com.lifesaver.service.InstalledApps
 import com.lifesaver.ui.components.AppIcon
 import com.lifesaver.ui.components.AppPickerDialog
 import com.lifesaver.ui.components.FlatButton
 import com.lifesaver.ui.components.LifesaverCard
-import com.lifesaver.ui.theme.Accent
+import com.lifesaver.ui.theme.TextCaption
 import com.lifesaver.ui.theme.TextSecondary
-
-data class PlanContext(val key: String, val label: String, val hint: String)
-
-val PLAN_CONTEXTS = listOf(
-    PlanContext(PlanMatcher.EVENING, "Evening (after 21:00)", "…then I will read a chapter of my book."),
-    PlanContext(PlanMatcher.WAITING, "Waiting / bored (daytime)", "…then I will text a friend or step outside."),
-    PlanContext(PlanMatcher.JUST_WOKE, "Just woke up", "…then I will make coffee and plan the day first."),
-)
+import com.lifesaver.ui.theme.clickableNoRipple
 
 /**
- * Shared editor for if-then plans (min 2 contexts, §3.1) and redirect apps (1–3, §3.1). Used by
- * both onboarding and the standalone plans screen. Emits changes up so the caller decides where to
- * persist (onboarding batches; the plans screen writes immediately).
+ * Editor for the mission pool (the activities the pause offers) + redirect apps. Missions are a
+ * flat, add-as-many list — the pause quotes ONE at random each time, so more missions = more
+ * variety. Stored as if-then plans (context "mission"). Used by onboarding and the plans screen.
  */
 @Composable
 fun PlanEditor(
@@ -54,50 +49,63 @@ fun PlanEditor(
     onPlansChange: (List<IfThenPlan>) -> Unit,
     onRedirectsChange: (List<RedirectApp>) -> Unit,
 ) {
-    val texts = remember {
-        androidx.compose.runtime.mutableStateMapOf<String, String>().apply {
-            PLAN_CONTEXTS.forEach { ctx ->
-                put(ctx.key, plans.firstOrNull { it.context == ctx.key }?.text ?: "")
-            }
-        }
+    val missions: SnapshotStateList<String> = remember {
+        plans.map { it.text }.ifEmpty { listOf("") }.toMutableStateList()
     }
 
-    fun emitPlans() {
-        val list = PLAN_CONTEXTS.mapNotNull { ctx ->
-            val t = texts[ctx.key]?.trim().orEmpty()
-            if (t.isBlank()) null else IfThenPlan(ctx.key, ctx.label, t)
-        }
+    fun emit() {
+        val list = missions.map { it.trim() }.filter { it.isNotBlank() }
+            .map { IfThenPlan(context = "mission", label = "Mission", text = it) }
         onPlansChange(list)
     }
 
     Column {
-        Text("If-then plans", style = MaterialTheme.typography.headlineSmall)
+        Text("Your missions", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Write at least two. Lifesaver quotes the matching one back at you when you reach for the feed.",
-            style = MaterialTheme.typography.bodyMedium,
+            "Short things to do instead of scrolling. Add as many as you like — the pause hands you one at random each time.",
+            style = MaterialTheme.typography.bodyMedium, color = TextSecondary,
         )
         Spacer(Modifier.height(12.dp))
-        PLAN_CONTEXTS.forEach { ctx ->
+
+        missions.forEachIndexed { i, value ->
             LifesaverCard {
-                Text(ctx.label.uppercase(), style = MaterialTheme.typography.bodySmall, color = Accent)
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = texts[ctx.key] ?: "",
-                    onValueChange = { texts[ctx.key] = it; emitPlans() },
-                    placeholder = { Text(ctx.hint) },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = value,
+                        onValueChange = { missions[i] = it; emit() },
+                        placeholder = { Text(HINTS[i % HINTS.size]) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                    )
+                    Spacer(Modifier.size(4.dp))
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Remove",
+                        tint = TextCaption,
+                        modifier = Modifier.size(28.dp).clickableNoRipple(
+                            onClick = { missions.removeAt(i); if (missions.isEmpty()) missions.add(""); emit() },
+                        ),
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
         }
+        FlatButton("Add mission", onClick = { missions.add("") })
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(16.dp))
         RedirectSection(redirects, onRedirectsChange)
     }
 }
+
+private val HINTS = listOf(
+    "Sketch for 5 minutes",
+    "Text someone you miss",
+    "Step outside / sunlight",
+    "Put on one song and just listen",
+    "Read a page of your book",
+    "10 push-ups",
+)
 
 @Composable
 private fun RedirectSection(
@@ -114,14 +122,14 @@ private fun RedirectSection(
     Spacer(Modifier.height(4.dp))
     Text(
         "One tap from the pause screen jumps to one of these instead of scrolling.",
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.bodyMedium, color = TextSecondary,
     )
     Spacer(Modifier.height(12.dp))
     LifesaverCard {
         if (redirects.isEmpty()) {
             Text("None chosen yet.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
         } else {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 redirects.forEach { r ->
                     val entry = apps.firstOrNull { it.packageName == r.appId }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -142,15 +150,11 @@ private fun RedirectSection(
             apps = apps,
             selected = selected,
             maxSelect = 3,
-            onToggle = { pkg ->
-                selected = if (pkg in selected) selected - pkg else selected + pkg
-            },
+            onToggle = { pkg -> selected = if (pkg in selected) selected - pkg else selected + pkg },
             onDismiss = { pickerOpen = false },
             onConfirm = {
                 pickerOpen = false
-                val chosen = apps.filter { it.packageName in selected }
-                    .map { RedirectApp(it.packageName, it.label) }
-                onChange(chosen)
+                onChange(apps.filter { it.packageName in selected }.map { RedirectApp(it.packageName, it.label) })
             },
         )
     }

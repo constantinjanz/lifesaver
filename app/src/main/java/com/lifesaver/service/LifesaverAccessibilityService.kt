@@ -131,9 +131,9 @@ class LifesaverAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: event.source
         if (root == null) { lastScanSummary = "no window root for $pkg"; return }
         val result = SurfaceDetector.detect(root, target)
-        lastSeenViewIds = result.seenViewIds
+        lastSeenViewIds = result.seenTokens
         lastSurfaceFast = result.isFast
-        lastScanSummary = "$pkg · ids=${result.seenViewIds.size} · fast=${result.isFast}"
+        lastScanSummary = "$pkg · tokens=${result.seenTokens.size} · fast=${result.isFast}"
 
         if (pkg == currentApp) {
             val wasFast = currentSurfaceFast
