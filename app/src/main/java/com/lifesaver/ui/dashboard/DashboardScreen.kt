@@ -64,8 +64,12 @@ fun CockpitPage(
     onOpenDebug: () -> Unit,
     onOpenReport: () -> Unit,
     onFixPermissions: () -> Unit,
+    onChangeBudget: (String, Int) -> Unit,
+    onSetReelsLimit: (String, Int?) -> Unit,
+    onSetBlockedWindow: (String, com.lifesaver.domain.BlockWindow?) -> Unit,
 ) {
     val topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
+    var sheetApp by remember { mutableStateOf<String?>(null) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -88,9 +92,23 @@ fun CockpitPage(
         }
 
         HeroRing(state)
-        BudgetTiles(state)
+        BudgetTiles(state, onTileClick = { sheetApp = it })
         StreakAndSaved(state)
         SubstitutionCard(state)
+    }
+
+    sheetApp?.let { appId ->
+        val target = DetectionConfig.targetFor(appId)
+        AppControlSheet(
+            appId = appId,
+            label = target?.label ?: appId,
+            surfaceName = target?.fastSurfaceName ?: "Reels",
+            settings = state.settings,
+            onChangeBudget = onChangeBudget,
+            onSetReelsLimit = onSetReelsLimit,
+            onSetBlockedWindow = onSetBlockedWindow,
+            onDismiss = { sheetApp = null },
+        )
     }
 }
 
@@ -137,14 +155,14 @@ private fun HeroRing(state: DashboardState) {
 }
 
 @Composable
-private fun BudgetTiles(state: DashboardState) {
+private fun BudgetTiles(state: DashboardState, onTileClick: (String) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         DetectionConfig.targets.forEach { target ->
             val usage = state.todayUsageMsByApp[target.appId] ?: 0L
             val budget = state.settings.budgetMs(target.appId)
             val remainingMin = BudgetEngine.remainingMinutes(budget, usage, 0)
             val fraction = BudgetEngine.remainingFraction(budget, usage, 0)
-            GlassTile(modifier = Modifier.weight(1f)) {
+            GlassTile(modifier = Modifier.weight(1f).clickableNoRipple(onClick = { onTileClick(target.appId) })) {
                 Text(target.label, style = MaterialTheme.typography.titleMedium, color = TextSecondary)
                 Spacer(Modifier.height(10.dp))
                 Box(contentAlignment = Alignment.Center) {
@@ -158,7 +176,7 @@ private fun BudgetTiles(state: DashboardState) {
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Text("min left", style = MaterialTheme.typography.bodySmall, color = TextCaption)
+                Text("tap to adjust", style = MaterialTheme.typography.bodySmall, color = TextCaption)
             }
         }
     }

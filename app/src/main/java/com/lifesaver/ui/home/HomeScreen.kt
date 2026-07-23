@@ -39,6 +39,9 @@ fun HomeScreen(
     onOpenDebug: () -> Unit,
     onOpenReport: () -> Unit,
     onFixPermissions: () -> Unit,
+    onChangeBudget: (String, Int) -> Unit,
+    onSetReelsLimit: (String, Int?) -> Unit,
+    onSetBlockedWindow: (String, com.lifesaver.domain.BlockWindow?) -> Unit,
     loadPatterns: suspend () -> PatternsData,
     lifeLogsFlow: Flow<List<LifeLog>>,
     lifeFocusArea: String?,
@@ -58,7 +61,7 @@ fun HomeScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
                 when (page) {
-                    0 -> CockpitPage(state, onEditPlans, onOpenSettings, onOpenDebug, onOpenReport, onFixPermissions)
+                    0 -> CockpitPage(state, onEditPlans, onOpenSettings, onOpenDebug, onOpenReport, onFixPermissions, onChangeBudget, onSetReelsLimit, onSetBlockedWindow)
                     1 -> PatternsPage(loadPatterns)
                     else -> LifePage(lifeLogsFlow, lifeFocusArea, lifeFocusTarget, onLogLife, onSetFocus)
                 }

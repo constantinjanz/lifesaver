@@ -71,6 +71,9 @@ fun LifesaverNavHost(
                 onOpenDebug = { nav.navigate(Routes.DEBUG) },
                 onOpenReport = { nav.navigate(Routes.REPORT) },
                 onFixPermissions = { nav.navigate(Routes.ONBOARDING) },
+                onChangeBudget = vm::changeBudget,
+                onSetReelsLimit = vm::setReelsLimit,
+                onSetBlockedWindow = vm::setBlockedWindow,
                 loadPatterns = vm::loadPatterns,
                 lifeLogsFlow = lifeFlow,
                 lifeFocusArea = state.settings.weeklyFocusArea,
@@ -89,11 +92,8 @@ fun LifesaverNavHost(
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 state = state,
-                onChangeBudget = vm::changeBudget,
                 onChangeStrictness = vm::changeStrictness,
                 onCancelPending = vm::cancelPendingChange,
-                onSetBlockedWindow = vm::setBlockedWindow,
-                onSetReelsLimit = vm::setReelsLimit,
                 onSetGrayscale = vm::setGrayscaleOnReels,
                 onOpenCheckin = { nav.navigate(Routes.CHECKIN) },
                 onOpenBuddy = { nav.navigate(Routes.BUDDY) },

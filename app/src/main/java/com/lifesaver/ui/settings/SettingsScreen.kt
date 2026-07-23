@@ -44,11 +44,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SettingsScreen(
     state: DashboardState,
-    onChangeBudget: (String, Int) -> Unit,
     onChangeStrictness: (Strictness) -> Unit,
     onCancelPending: (Long) -> Unit,
-    onSetBlockedWindow: (String, com.lifesaver.domain.BlockWindow?) -> Unit,
-    onSetReelsLimit: (String, Int?) -> Unit,
     onSetGrayscale: (Boolean) -> Unit,
     onOpenCheckin: () -> Unit,
     onOpenBuddy: () -> Unit,
@@ -65,47 +62,13 @@ fun SettingsScreen(
                 state.pendingChanges.forEach { PendingRow(it.settingKey, it.newValue, it.effectiveTs) { onCancelPending(it.id) } }
             }
 
-            Category("BUDGETS")
-            DetectionConfig.targets.forEach { target ->
-                BudgetSetting(
-                    label = target.label,
-                    current = state.settings.budgetMin(target.appId),
-                    onCommit = { onChangeBudget(target.appId, it) },
-                )
-            }
             Text(
-                "Loosening (a bigger budget) takes effect after 24h. Tightening is instant.",
+                "Tip: tap the Instagram/YouTube tiles on the cockpit to set budgets, Reels limits and lock hours per app.",
                 style = MaterialTheme.typography.bodySmall,
             )
 
-            Category("REELS & SHORTS")
-            Text(
-                "Give the endless-scroll surface its own limit — or block it entirely and keep only posts, DMs and normal videos.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            DetectionConfig.targets.forEach { target ->
-                ReelsLimitSetting(
-                    label = target.label,
-                    surfaceName = target.fastSurfaceName,
-                    limitMin = state.settings.reelsLimitMin(target.appId),
-                    maxMin = state.settings.budgetMin(target.appId),
-                    onChange = { onSetReelsLimit(target.appId, it) },
-                )
-            }
+            Category("SCROLL DETERRENTS")
             GrayscaleSetting(enabled = state.settings.grayscaleOnReels, onChange = onSetGrayscale)
-
-            Category("APP LOCKS")
-            Text(
-                "Pick hours an app is fully blocked — no budget, no emergency unlock, no way around it.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            DetectionConfig.targets.forEach { target ->
-                BlockWindowSetting(
-                    label = target.label,
-                    window = state.settings.blockedWindow(target.appId),
-                    onChange = { onSetBlockedWindow(target.appId, it) },
-                )
-            }
 
             Category("FRICTION")
             StrictnessSetting(state.settings.strictness, onChangeStrictness)
@@ -128,13 +91,18 @@ fun SettingsScreen(
             }
 
             Category("NUDGES")
+            val noteSet = com.lifesaver.service.FutureSelf.anyExists(androidx.compose.ui.platform.LocalContext.current)
             LifesaverCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Future-self note", style = MaterialTheme.typography.titleMedium)
-                        Text("A voice message to yourself, played at the pause.", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (noteSet) "Voice note set ✓ — plays at the pause." else "A voice message to yourself, played at the pause.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (noteSet) com.lifesaver.ui.theme.Success else com.lifesaver.ui.theme.TextSecondary,
+                        )
                     }
-                    FlatButton("Record", onClick = onOpenFutureSelf)
+                    FlatButton(if (noteSet) "Edit" else "Record", onClick = onOpenFutureSelf)
                 }
             }
 

@@ -7,35 +7,54 @@ import android.os.Build
 import java.io.File
 
 /**
- * A short voice note the user records to their future self; it plays at the intervention, in their
- * own voice, at the moment they reach for the feed. Stored as one file in app storage.
+ * Short voice notes the user records to their future self, one per pause length (rung 1/2/3 =
+ * 1st / 2nd / 3rd+ open ≈ 5s / 15s / 30s). The matching note plays on the pause screen and is cut
+ * off when the countdown ends. If a rung has no note, the nearest shorter one is used.
  */
 object FutureSelf {
-    fun file(context: Context): File = File(context.filesDir, "future_self.m4a")
-    fun exists(context: Context): Boolean = file(context).let { it.exists() && it.length() > 0 }
-    fun delete(context: Context): Boolean = file(context).delete()
+    /** Standard pause seconds per rung, for labelling the recorder. */
+    val RUNG_SECONDS = mapOf(1 to 5, 2 to 15, 3 to 30)
 
-    fun play(context: Context, onDone: () -> Unit = {}): MediaPlayer? = runCatching {
-        MediaPlayer().apply {
-            setDataSource(file(context).absolutePath)
-            setOnCompletionListener { runCatching { release() }; onDone() }
-            prepare()
-            start()
-        }
-    }.getOrNull()
+    fun file(context: Context, rung: Int): File =
+        File(context.filesDir, "future_self_${rung.coerceIn(1, 3)}.m4a")
+
+    fun exists(context: Context, rung: Int): Boolean =
+        file(context, rung).let { it.exists() && it.length() > 0 }
+
+    fun anyExists(context: Context): Boolean = (1..3).any { exists(context, it) }
+
+    fun delete(context: Context, rung: Int): Boolean = file(context, rung).delete()
+
+    /** The note to play for [rung]: exact, else the nearest recorded shorter rung, else null. */
+    fun noteFor(context: Context, rung: Int): File? {
+        for (r in rung.coerceIn(1, 3) downTo 1) if (exists(context, r)) return file(context, r)
+        return null
+    }
+
+    fun play(context: Context, rung: Int): MediaPlayer? {
+        val f = noteFor(context, rung) ?: return null
+        return runCatching {
+            MediaPlayer().apply {
+                setDataSource(f.absolutePath)
+                setOnCompletionListener { runCatching { release() } }
+                prepare()
+                start()
+            }
+        }.getOrNull()
+    }
 }
 
-/** Simple MIC recorder that writes to [FutureSelf.file]. Call [start] then [stop]. */
+/** MIC recorder writing to a specific file. Call [start] then [stop]. */
 class VoiceRecorder(private val context: Context) {
     private var recorder: MediaRecorder? = null
 
-    fun start(): Boolean = runCatching {
+    fun start(target: File): Boolean = runCatching {
         @Suppress("DEPRECATION")
         val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else MediaRecorder()
         r.setAudioSource(MediaRecorder.AudioSource.MIC)
         r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
         r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-        r.setOutputFile(FutureSelf.file(context).absolutePath)
+        r.setOutputFile(target.absolutePath)
         r.prepare()
         r.start()
         recorder = r

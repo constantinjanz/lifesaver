@@ -40,7 +40,6 @@ import com.lifesaver.LifesaverApp
 import com.lifesaver.data.InterventionEvent
 import com.lifesaver.data.RedirectApp
 import com.lifesaver.domain.DayKeys
-import com.lifesaver.domain.PlanMatcher
 import com.lifesaver.ui.components.AppIcon
 import com.lifesaver.ui.components.glass.GlassBackground
 import com.lifesaver.ui.components.glass.GlassPanel
@@ -52,7 +51,6 @@ import com.lifesaver.ui.theme.TextPrimary
 import com.lifesaver.ui.theme.TextSecondary
 import com.lifesaver.ui.theme.clickableNoRipple
 import kotlinx.coroutines.launch
-import java.time.LocalTime
 
 /**
  * The pre-feed intervention (PRD §3.2, DESIGN v2 §7). A glass cockpit panel fades in over the
@@ -90,7 +88,6 @@ class InterventionActivity : ComponentActivity() {
                         onContinue = { record("continued"); finish() },
                         onDismiss = { record("dismissed"); goHome() },
                         onRedirect = ::redirectTo,
-                        onMicroComplete = { record("micro_action"); goHome() },
                     )
                 }
             }
@@ -155,23 +152,13 @@ private fun InterventionContent(
     onContinue: () -> Unit,
     onDismiss: () -> Unit,
     onRedirect: (RedirectApp) -> Unit,
-    onMicroComplete: () -> Unit,
 ) {
-    var showMicro by remember { mutableStateOf(false) }
     var pickedIntention by remember { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
-    val hasNote = remember { com.lifesaver.service.FutureSelf.exists(context) }
-    // Your own voice, right at the moment you reach for the feed.
-    LaunchedEffect(Unit) { if (hasNote) com.lifesaver.service.FutureSelf.play(context) }
+    val rung = openIndex.coerceIn(1, 3)
+    val hasNote = remember { com.lifesaver.service.FutureSelf.noteFor(context, rung) != null }
     val settings by produceState(initialValue = null as com.lifesaver.data.Settings?) {
         value = LifesaverApp.instance.container.settings.current()
-    }
-    if (showMicro) {
-        MicroActionSheet(
-            goals = settings?.ifThenPlans?.map { it.text } ?: emptyList(),
-            onComplete = onMicroComplete,
-        )
-        return
     }
 
     // Fade + rise-in entrance (§6).
@@ -193,12 +180,21 @@ private fun InterventionContent(
     }
     val done = elapsed >= 1f
 
-    // Which plan to quote — rotate through the matching-context plans by open index (§7 cycling).
-    val planText = remember(settings, openIndex) {
+    // Future-self voice: play the note for this pause length on entry, and cut it off the moment
+    // the countdown ends (so it never bleeds past the wait).
+    val player = remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    LaunchedEffect(Unit) { if (hasNote) player.value = com.lifesaver.service.FutureSelf.play(context, rung) }
+    LaunchedEffect(done) {
+        if (done) { player.value?.let { runCatching { it.stop(); it.release() } }; player.value = null }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { player.value?.let { runCatching { it.stop(); it.release() } } }
+    }
+
+    // Mission = one of your own if-then plans, picked at random for this pause.
+    val planText = remember(settings) {
         val plans = settings?.ifThenPlans ?: emptyList()
-        val ctx = PlanMatcher.contextForHour(LocalTime.now().hour)
-        val matching = plans.filter { it.context == ctx }.ifEmpty { plans }
-        if (matching.isEmpty()) null else matching[(openIndex - 1).coerceAtLeast(0) % matching.size].text
+        if (plans.isEmpty()) null else plans[kotlin.random.Random.nextInt(plans.size)].text
     }
 
     val redirects by produceState(initialValue = emptyList<RedirectEntry>(), settings) {
@@ -229,6 +225,10 @@ private fun InterventionContent(
                 Text("Breathe", style = MaterialTheme.typography.titleMedium, color = Accent)
             }
             Spacer(Modifier.height(28.dp))
+            if (planText != null) {
+                Text("Your mission", style = MaterialTheme.typography.bodySmall, color = Accent, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(6.dp))
+            }
             Text(
                 planText ?: "One breath before the feed decides for you.",
                 style = MaterialTheme.typography.headlineSmall,
@@ -270,14 +270,7 @@ private fun InterventionContent(
                 }
                 Spacer(Modifier.height(14.dp))
             }
-            if (hasNote) {
-                GlassPill("Hear your note", onClick = { com.lifesaver.service.FutureSelf.play(context) }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(10.dp))
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GlassPill("Micro-action", onClick = { showMicro = true }, modifier = Modifier.weight(1f))
-                GlassPill("Close", onClick = onDismiss, modifier = Modifier.weight(1f))
-            }
+            GlassPill("Close $label", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(10.dp))
             Box(modifier = Modifier.fillMaxWidth().alpha(if (done) 1f else 0.3f)) {
                 GlassPill(
