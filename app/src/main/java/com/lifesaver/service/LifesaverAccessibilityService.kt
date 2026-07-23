@@ -109,9 +109,20 @@ class LifesaverAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         val result = SurfaceDetector.detect(root, target)
         @Suppress("DEPRECATION") root.recycle()
+        val wasFast = currentSurfaceFast
         currentSurfaceFast = result.isFast
         lastSurfaceFast = result.isFast
         lastSeenViewIds = result.seenViewIds
+
+        // Just landed on Reels/Shorts and it's limited → check the sub-budget right away so a full
+        // block feels instant instead of waiting for the next accounting tick.
+        if (result.isFast && !wasFast && enforcing() && settings.reelsLimited(pkg)) {
+            val app = pkg
+            scope.launch {
+                val reelsMs = accountant.reelsToday(app, DayKeys.todayKey())
+                if (reelsMs >= settings.reelsLimitMs(app)) triggerBlock(app, reels = true)
+            }
+        }
     }
 
     private fun onForegroundPackage(pkg: String) {
@@ -240,6 +251,11 @@ class LifesaverAccessibilityService : AccessibilityService() {
                 return@launch
             }
             if (enforce) {
+                // Reels/Shorts sub-budget: wall off the fast surface when its own limit is hit.
+                if (currentSurfaceFast && settings.reelsLimited(app) && a.reelsMs >= settings.reelsLimitMs(app)) {
+                    triggerBlock(app, reels = true)
+                    return@launch
+                }
                 if (a.exhausted) {
                     triggerBlock(app)
                 } else {
@@ -290,16 +306,19 @@ class LifesaverAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun triggerBlock(app: String, scheduled: Boolean = false) {
+    private fun triggerBlock(app: String, scheduled: Boolean = false, reels: Boolean = false) {
         if (!canEnforceNow(app)) return
         markEnforced(app)
         ownUiForeground = true
         val untilMin = if (scheduled) settings.blockedWindow(app)?.endMinute ?: -1 else -1
         main.post {
-            // The app is done: end accounting for this session so a PiP window can't respawn the
-            // block via the periodic tick. Re-opening it full-screen re-blocks once.
-            stopTicker()
-            if (currentApp == app) currentApp = null
+            // A reels block only walls off the fast surface — keep the session alive so the rest of
+            // the app (posts/DMs) still accounts. A full/scheduled block ends the session so a PiP
+            // window can't respawn it via the tick; re-opening full-screen re-blocks once.
+            if (!reels) {
+                stopTicker()
+                if (currentApp == app) currentApp = null
+            }
             val label = DetectionConfig.targetFor(app)?.label ?: app
             val intent = Intent(this, BlockActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -307,6 +326,8 @@ class LifesaverAccessibilityService : AccessibilityService() {
                 .putExtra(BlockActivity.EXTRA_APP_LABEL, label)
                 .putExtra(BlockActivity.EXTRA_SCHEDULED, scheduled)
                 .putExtra(BlockActivity.EXTRA_UNTIL_MIN, untilMin)
+                .putExtra(BlockActivity.EXTRA_REELS, reels)
+                .putExtra(BlockActivity.EXTRA_SURFACE_NAME, DetectionConfig.targetFor(app)?.fastSurfaceName ?: "Reels")
             startActivity(intent)
         }
     }

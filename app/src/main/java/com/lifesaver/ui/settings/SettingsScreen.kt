@@ -48,6 +48,7 @@ fun SettingsScreen(
     onChangeStrictness: (Strictness) -> Unit,
     onCancelPending: (Long) -> Unit,
     onSetBlockedWindow: (String, com.lifesaver.domain.BlockWindow?) -> Unit,
+    onSetReelsLimit: (String, Int?) -> Unit,
     onOpenCheckin: () -> Unit,
     onOpenBuddy: () -> Unit,
     onBack: () -> Unit,
@@ -74,6 +75,21 @@ fun SettingsScreen(
                 "Loosening (a bigger budget) takes effect after 24h. Tightening is instant.",
                 style = MaterialTheme.typography.bodySmall,
             )
+
+            Category("REELS & SHORTS")
+            Text(
+                "Give the endless-scroll surface its own limit — or block it entirely and keep only posts, DMs and normal videos.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            DetectionConfig.targets.forEach { target ->
+                ReelsLimitSetting(
+                    label = target.label,
+                    surfaceName = target.fastSurfaceName,
+                    limitMin = state.settings.reelsLimitMin(target.appId),
+                    maxMin = state.settings.budgetMin(target.appId),
+                    onChange = { onSetReelsLimit(target.appId, it) },
+                )
+            }
 
             Category("APP LOCKS")
             Text(
@@ -139,6 +155,51 @@ private fun BudgetSetting(label: String, current: Int, onCommit: (Int) -> Unit) 
             valueRange = 10f..120f,
             steps = (120 - 10) / 5 - 1,
         )
+    }
+}
+
+@Composable
+private fun ReelsLimitSetting(
+    label: String,
+    surfaceName: String,
+    limitMin: Int?,
+    maxMin: Int,
+    onChange: (Int?) -> Unit,
+) {
+    val enabled = limitMin != null
+    LifesaverCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("$label · $surfaceName", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    when {
+                        !enabled -> "No separate limit"
+                        limitMin == 0 -> "Blocked entirely"
+                        else -> "Max $limitMin min/day"
+                    },
+                    style = MaterialTheme.typography.bodySmall, color = Accent,
+                )
+            }
+            androidx.compose.material3.Switch(
+                checked = enabled,
+                // Default to a gentle limit when turning on; user drags to 0 to block completely.
+                onCheckedChange = { on -> onChange(if (on) minOf(10, maxMin) else null) },
+            )
+        }
+        if (enabled) {
+            var value by remember(limitMin) { mutableStateOf((limitMin ?: 0).toFloat()) }
+            Slider(
+                value = value,
+                onValueChange = { value = it },
+                onValueChangeFinished = { onChange(value.toInt()) },
+                valueRange = 0f..maxMin.toFloat(),
+                steps = (maxMin - 1).coerceAtLeast(0),
+            )
+            Text(
+                if (value.toInt() == 0) "Drag = 0 → $surfaceName fully blocked" else "${value.toInt()} of $maxMin min may be $surfaceName",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 

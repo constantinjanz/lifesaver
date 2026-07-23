@@ -61,6 +61,8 @@ class BlockActivity : ComponentActivity() {
         val label = intent.getStringExtra(EXTRA_APP_LABEL) ?: appId
         val scheduled = intent.getBooleanExtra(EXTRA_SCHEDULED, false)
         val untilMin = intent.getIntExtra(EXTRA_UNTIL_MIN, -1)
+        val reels = intent.getBooleanExtra(EXTRA_REELS, false)
+        val surfaceName = intent.getStringExtra(EXTRA_SURFACE_NAME) ?: "Reels"
         setContent {
             LifesaverTheme {
                 GlassBackground(seed = 2, drift = false) {
@@ -68,6 +70,8 @@ class BlockActivity : ComponentActivity() {
                         appId = appId,
                         label = label,
                         scheduled = scheduled,
+                        reels = reels,
+                        surfaceName = surfaceName,
                         untilText = if (untilMin >= 0) com.lifesaver.domain.ScheduleBlock.format(untilMin) else null,
                         onClose = ::goHome,
                         onRedirect = ::redirectTo,
@@ -118,6 +122,8 @@ class BlockActivity : ComponentActivity() {
         const val EXTRA_APP_LABEL = "app_label"
         const val EXTRA_SCHEDULED = "scheduled"
         const val EXTRA_UNTIL_MIN = "until_min"
+        const val EXTRA_REELS = "reels"
+        const val EXTRA_SURFACE_NAME = "surface_name"
     }
 }
 
@@ -129,6 +135,8 @@ private fun BlockContent(
     appId: String,
     label: String,
     scheduled: Boolean,
+    reels: Boolean,
+    surfaceName: String,
     untilText: String?,
     onClose: () -> Unit,
     onRedirect: (String) -> Unit,
@@ -149,13 +157,22 @@ private fun BlockContent(
         }
         Spacer(Modifier.height(28.dp))
         Text(
-            if (scheduled) "$label is locked" else "$label is done for today",
+            when {
+                reels -> "$surfaceName is off"
+                scheduled -> "$label is locked"
+                else -> "$label is done for today"
+            },
             style = MaterialTheme.typography.headlineSmall,
             color = TextPrimary,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
-        if (scheduled) {
+        if (reels) {
+            Text(
+                "You can still use $label — just not $surfaceName. That's where the time really goes.",
+                style = MaterialTheme.typography.bodyMedium, color = TextSecondary, textAlign = TextAlign.Center,
+            )
+        } else if (scheduled) {
             Text(
                 if (untilText != null) "You locked it until $untilText. No way around it — that was the point."
                 else "You locked it for this window. No way around it — that was the point.",
@@ -194,8 +211,8 @@ private fun BlockContent(
 
         Spacer(Modifier.height(24.dp))
         GlassPill("Close $label", onClick = onClose, primary = true)
-        // Scheduled hard-block is deliberately not unlockable — the whole point is "no matter what".
-        if (!scheduled && remainingUnlocks > 0) {
+        // Scheduled hard-block and reels-limit are self-imposed surface locks — not unlockable here.
+        if (!scheduled && !reels && remainingUnlocks > 0) {
             Spacer(Modifier.height(10.dp))
             Text(
                 "Use emergency unlock · $remainingUnlocks left",

@@ -119,7 +119,10 @@ private fun FocusSetter(onSetFocus: (String, Int) -> Unit) {
         Text("Pick one focus for this week", style = MaterialTheme.typography.bodyLarge)
         Text("Just one area, one concrete target. The rest stay loggable.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
         Spacer(Modifier.height(10.dp))
-        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             LifesaverViewModel.LIFE_AREAS.forEach { a ->
                 GlassPill(LifesaverViewModel.areaLabel(a), onClick = { area = a }, primary = a == area)
             }

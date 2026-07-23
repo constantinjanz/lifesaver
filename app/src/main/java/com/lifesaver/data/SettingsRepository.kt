@@ -39,6 +39,7 @@ class SettingsRepository(private val context: Context) {
         val BLOCKED_WINDOWS = stringPreferencesKey("blocked_windows_json")
         val BUDDY_PAIRING = stringPreferencesKey("buddy_pairing_id")
         val BUDDY_LABEL = stringPreferencesKey("buddy_label")
+        val REELS_LIMITS = stringPreferencesKey("reels_limits_json")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -48,6 +49,7 @@ class SettingsRepository(private val context: Context) {
             budgetMinByApp = Settings.budgetsFromJson(p[Keys.BUDGETS]).ifEmpty {
                 mapOf(DetectionConfig.INSTAGRAM to 30, DetectionConfig.YOUTUBE to 30)
             },
+            reelsLimitMinByApp = Settings.budgetsFromJson(p[Keys.REELS_LIMITS]),
             enabledApps = p[Keys.ENABLED] ?: DetectionConfig.targetPackages,
             strictness = runCatching { Strictness.valueOf(p[Keys.STRICTNESS] ?: "STANDARD") }
                 .getOrDefault(Strictness.STANDARD),
@@ -80,6 +82,13 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setEnabledApps(apps: Set<String>) = edit { it[Keys.ENABLED] = apps }
+
+    /** Set the fast-surface (Reels/Shorts) sub-limit in minutes (0 = fully blocked), or null to remove it. */
+    suspend fun setReelsLimit(appId: String, minutes: Int?) = edit { prefs ->
+        val map = Settings.budgetsFromJson(prefs[Keys.REELS_LIMITS]).toMutableMap()
+        if (minutes == null) map.remove(appId) else map[appId] = minutes.coerceIn(0, 240)
+        prefs[Keys.REELS_LIMITS] = Settings.budgetsToJson(map)
+    }
 
     suspend fun setStrictness(value: Strictness) = edit { it[Keys.STRICTNESS] = value.name }
 

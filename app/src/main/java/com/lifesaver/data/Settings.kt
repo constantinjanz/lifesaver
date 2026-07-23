@@ -40,6 +40,9 @@ data class Settings(
         DetectionConfig.INSTAGRAM to 30,
         DetectionConfig.YOUTUBE to 30,
     ),
+    /** Optional per-app sub-budget for the 2x fast surface (Reels/Shorts). Key present = limited;
+     *  value in minutes, 0 = fully blocked. Key absent = no separate limit. */
+    val reelsLimitMinByApp: Map<String, Int> = emptyMap(),
     val enabledApps: Set<String> = DetectionConfig.targetPackages,
     val strictness: Strictness = Strictness.STANDARD,
     val ifThenPlans: List<IfThenPlan> = emptyList(),
@@ -61,6 +64,10 @@ data class Settings(
     val buddyPaired: Boolean get() = !buddyPairingId.isNullOrBlank()
     fun budgetMin(appId: String): Int = budgetMinByApp[appId] ?: 30
     fun budgetMs(appId: String): Long = budgetMin(appId) * 60_000L
+    fun reelsLimited(appId: String): Boolean = reelsLimitMinByApp.containsKey(appId)
+    fun reelsLimitMin(appId: String): Int? = reelsLimitMinByApp[appId]
+    fun reelsLimitMs(appId: String): Long = (reelsLimitMinByApp[appId] ?: Int.MAX_VALUE) * 60_000L
+    fun reelsFullyBlocked(appId: String): Boolean = reelsLimitMinByApp[appId] == 0
     fun isPaused(nowMs: Long): Boolean = nowMs < pausedUntilMs
     fun blockedWindow(appId: String): BlockWindow? = blockedWindows[appId]
 

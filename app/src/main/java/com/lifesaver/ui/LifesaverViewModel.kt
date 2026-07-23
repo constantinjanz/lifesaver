@@ -236,6 +236,11 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { container.settings.setBlockedWindow(appId, window) }
     }
 
+    /** null = no separate reels limit; 0 = fully blocked; N = N minutes on Reels/Shorts. */
+    fun setReelsLimit(appId: String, minutes: Int?) {
+        viewModelScope.launch { container.settings.setReelsLimit(appId, minutes) }
+    }
+
     // --- Buddy approval ---
 
     /** Create a pairing and persist it; returns the setup URL to send the buddy via WhatsApp. */

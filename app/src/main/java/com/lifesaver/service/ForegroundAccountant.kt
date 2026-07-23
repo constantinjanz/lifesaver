@@ -18,7 +18,7 @@ class ForegroundAccountant(private val db: LifesaverDatabase) {
 
     private val lock = Mutex()
 
-    data class Accrued(val effectiveMs: Long, val remainingMs: Long, val exhausted: Boolean)
+    data class Accrued(val effectiveMs: Long, val remainingMs: Long, val exhausted: Boolean, val reelsMs: Long)
 
     /** Add a slice of foreground time (of which [deltaFastMs] was on the 2x surface). */
     suspend fun accrue(
@@ -31,7 +31,7 @@ class ForegroundAccountant(private val db: LifesaverDatabase) {
         if (deltaMs <= 0) {
             val cur = db.usageDao().get(dayKey, appId)
             val eff = cur?.let { BudgetEngine.effectiveBurnMs(it) } ?: 0
-            return@withLock Accrued(eff, (budgetMs - eff).coerceAtLeast(0), budgetMs in 1..eff)
+            return@withLock Accrued(eff, (budgetMs - eff).coerceAtLeast(0), budgetMs in 1..eff, cur?.reelsShortsMs ?: 0)
         }
         val fast = deltaFastMs.coerceIn(0, deltaMs)
         val cur = db.usageDao().get(dayKey, appId)
@@ -44,8 +44,11 @@ class ForegroundAccountant(private val db: LifesaverDatabase) {
         val eff = BudgetEngine.effectiveBurnMs(updated)
         val exhausted = budgetMs in 1..eff
         db.usageDao().upsert(updated.copy(blocked = updated.blocked || exhausted))
-        Accrued(eff, (budgetMs - eff).coerceAtLeast(0), exhausted)
+        Accrued(eff, (budgetMs - eff).coerceAtLeast(0), exhausted, updated.reelsShortsMs)
     }
+
+    suspend fun reelsToday(appId: String, dayKey: String): Long =
+        db.usageDao().get(dayKey, appId)?.reelsShortsMs ?: 0
 
     /** Persist a completed session (append-only, §9.1-ready). */
     suspend fun recordSession(appId: String, startMs: Long, endMs: Long, fastMs: Long) {
