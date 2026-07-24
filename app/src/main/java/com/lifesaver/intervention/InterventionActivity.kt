@@ -86,8 +86,14 @@ class InterventionActivity : ComponentActivity() {
                         minutesLeft = minutesLeft,
                         intentions = com.lifesaver.detection.DetectionConfig.intentionsFor(appId),
                         onPickIntention = { selectedIntention = it },
-                        onContinue = { record("continued"); finish() },
-                        onDismiss = { record("dismissed"); goHome() },
+                        onContinue = {
+                            com.lifesaver.service.LifesaverAccessibilityService.admit(appId)
+                            record("continued"); finish()
+                        },
+                        onDismiss = {
+                            com.lifesaver.service.LifesaverAccessibilityService.deny(appId)
+                            record("dismissed"); goHome()
+                        },
                         onRedirect = ::redirectTo,
                     )
                 }
@@ -96,6 +102,7 @@ class InterventionActivity : ComponentActivity() {
     }
 
     private fun redirectTo(app: RedirectApp) {
+        com.lifesaver.service.LifesaverAccessibilityService.deny(appId)
         record("redirect", redirectTarget = app.appId)
         LifesaverApp.instance.container.installedApps.launchIntent(app.appId)?.let { startActivity(it) }
         finish()
@@ -128,6 +135,9 @@ class InterventionActivity : ComponentActivity() {
     }
 
     override fun onBackPressed() {
+        // Back must NOT reveal the app behind the pause — treat it as a dismissal (go home) and
+        // force a re-pause on the next open.
+        com.lifesaver.service.LifesaverAccessibilityService.deny(appId)
         record("dismissed"); goHome()
     }
 
@@ -154,6 +164,10 @@ private fun InterventionContent(
     onDismiss: () -> Unit,
     onRedirect: (RedirectApp) -> Unit,
 ) {
+    // Intercept the system back gesture (incl. predictive back) so it can't just finish the pause
+    // and reveal the app — route it through the same dismissal path (go home + force re-pause).
+    androidx.activity.compose.BackHandler(enabled = true) { onDismiss() }
+
     var pickedIntention by remember { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val rung = openIndex.coerceIn(1, 3)

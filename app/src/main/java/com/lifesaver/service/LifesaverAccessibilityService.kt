@@ -58,13 +58,18 @@ class LifesaverAccessibilityService : AccessibilityService() {
     // After a FULL/scheduled block we latch the app: while it stays foreground (incl. YouTube PiP),
     // we don't re-enforce. Cleared only when a different, non-self app comes to the front (real exit).
     @Volatile private var blockLatchApp: String? = null
-    // Last time we showed a breathe pause per app — throttles the pause so it never stacks
-    // back-to-back and drives the "every N minutes" reminder.
+    // Admission: the app the user has PASSED a breathe pause for (via Continue). While admitted, we
+    // don't re-pause it. Cleared the moment they leave to another app/home — so dismissing the pause
+    // (Back/Close) and re-opening always pauses again (no skip-the-wait bypass). Set by the
+    // intervention screen through admit()/deny() below.
+    @Volatile private var admittedApp: String? = null
+    // Last time a breathe pause was shown/passed per app — drives the "every N minutes" reminder.
     private val lastBreatheAtMs = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         isConnected = true
+        self = this
         val container = LifesaverApp.instance.container
         db = container.database
         accountant = ForegroundAccountant(db)
@@ -171,6 +176,10 @@ class LifesaverAccessibilityService : AccessibilityService() {
             if (pkg == latched) return
             blockLatchApp = null
         }
+        // Left the admitted app (anything other than it comes to the front) → revoke admission, so
+        // re-entering pauses again. Our own pause screen is our package and returns earlier, so it
+        // doesn't clear admission.
+        if (admittedApp != null && pkg != admittedApp) admittedApp = null
         // Any window change means we may have left Reels — drop grayscale until re-detected.
         clearGrayscale()
         lastForegroundPackage = pkg
@@ -337,6 +346,8 @@ class LifesaverAccessibilityService : AccessibilityService() {
             val eff = accountant.effectiveToday(app, dayKey)
             if (budget in 1..eff) {
                 triggerBlock(app)
+            } else if (app == admittedApp) {
+                // Already breathed for this app and hasn't left it — let them straight in.
             } else {
                 val openIndex = db.interventionDao().openCountToday(app, dayKey) + 1
                 val friction = FrictionLadder.pauseSeconds(openIndex, settings.strictness)
@@ -346,19 +357,11 @@ class LifesaverAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Minimum gap between breathe pauses for an app: the reminder interval, or a 90s anti-churn
-     *  floor when reminders are off, so window churn can't stack pauses back-to-back. */
-    private fun breatheGapMs(): Long {
-        val min = settings.breatheReminderMin
-        return if (min > 0) min * 60_000L else 90_000L
-    }
-
     private fun triggerIntervention(app: String, openIndex: Int, friction: Int, minutesLeft: Int) {
+        // Anti-churn only: the 6s cooldown squashes duplicate triggers from IG story/reel sub-windows
+        // briefly stealing focus. Back-to-back is otherwise prevented by admission (a passed pause
+        // isn't re-shown) — and a *dismissed* pause deliberately re-pauses on the next open.
         if (!canEnforceNow(app)) return
-        // Don't re-pause within the breathe gap — fixes back-to-back breathe screens from IG story/
-        // reel sub-windows briefly stealing and returning the foreground.
-        val since = System.currentTimeMillis() - (lastBreatheAtMs[app] ?: 0L)
-        if (since < breatheGapMs()) return
         lastBreatheAtMs[app] = System.currentTimeMillis()
         markEnforced(app)
         ownUiForeground = true
@@ -424,16 +427,39 @@ class LifesaverAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         isConnected = false
+        if (self === this) self = null
         clearGrayscale()
         endCurrentSession(System.currentTimeMillis())
         scope.cancel()
         return super.onUnbind(intent)
     }
 
+    /** The user passed the breathe pause (Continue) — admit the app until they leave it. */
+    private fun admit(app: String) {
+        admittedApp = app
+        lastBreatheAtMs[app] = System.currentTimeMillis()
+    }
+
+    /** The user dismissed the pause (Back/Close/redirect) without passing — force a re-pause on the
+     *  next open by clearing admission and the enforce cooldown so nothing is skipped. */
+    private fun deny(app: String) {
+        if (admittedApp == app) admittedApp = null
+        if (lastEnforceApp == app) lastEnforceAtMs = 0L
+    }
+
     companion object {
         private const val TICK_MS = 5_000L
         private const val DETECT_DEBOUNCE_MS = 500L
         private const val ENFORCE_COOLDOWN_MS = 6_000L
+
+        // Live service instance so the intervention screen can report the user's choice.
+        @Volatile private var self: LifesaverAccessibilityService? = null
+
+        /** Called by the intervention screen when the user taps Continue — the app is admitted. */
+        fun admit(app: String) { self?.admit(app) }
+
+        /** Called when the user leaves the pause without passing (Back/Close/redirect). */
+        fun deny(app: String) { self?.deny(app) }
 
         @Volatile var isConnected: Boolean = false; private set
         @Volatile var lastForegroundPackage: String? = null; private set

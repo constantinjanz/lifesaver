@@ -148,6 +148,9 @@ private fun BlockContent(
     val remainingUnlocks by produceState(0) { value = loadRemainingUnlocks() }
     var showUnlockDialog by remember { mutableStateOf(false) }
 
+    // Back must go home, never reveal the blocked app (predictive back included).
+    androidx.activity.compose.BackHandler(enabled = true) { onClose() }
+
     Column(
         modifier = Modifier.fillMaxSize().systemBarsPadding().padding(24.dp),
         verticalArrangement = Arrangement.Center,

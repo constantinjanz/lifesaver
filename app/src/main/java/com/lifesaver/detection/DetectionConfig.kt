@@ -29,12 +29,14 @@ object DetectionConfig {
         Target(
             appId = INSTAGRAM,
             label = "Instagram",
-            // Modern IG has no view IDs (Litho) — match content-descriptions unique to the immersive
-            // Reels VIEWER (the Reels tab), NOT things a reel embedded in the home feed also shows.
-            // "create a reel" is the Reels-tab top-bar button and is absent from feed reel cards.
-            // Deliberately NOT "reshare number"/"reels": those also appear on feed-embedded reels /
-            // the bottom-nav tab and would wrongly block the normal feed.
-            fastSurfaceViewIdMarkers = listOf("clips_", "reels_", "create a reel"),
+            // Modern IG has no view IDs (Litho) — match content-descriptions on the immersive Reels
+            // VIEWER. Two signals, combined with the isVisibleToUser filter in SurfaceDetector:
+            //  - "create a reel": the Reels-tab top-bar button (Reels opened from the tab).
+            //  - "double-tap to play or pause": the content-description of the ACTIVE full-screen reel
+            //    player — present whether the reel was opened from the tab OR tapped in the home feed
+            //    (fixes the "tap a feed reel → immersive reels not detected" bypass).
+            // Deliberately NOT bare "reels"/"reshare number": those leak onto feed-embedded reel cards.
+            fastSurfaceViewIdMarkers = listOf("clips_", "reels_", "create a reel", "double-tap to play or pause"),
             fastSurfaceName = "Reels",
         ),
         Target(
