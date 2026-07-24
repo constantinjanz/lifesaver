@@ -36,6 +36,12 @@ class InstalledApps(private val context: Context) {
         pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
     }.getOrDefault(packageName)
 
+    /** App icon for any installed package (custom apps aren't in the launchable list cache). */
+    fun iconFor(packageName: String): Drawable? = runCatching {
+        val pm = context.packageManager
+        pm.getApplicationIcon(pm.getApplicationInfo(packageName, 0))
+    }.getOrNull()
+
     fun launchIntent(packageName: String): Intent? =
         context.packageManager.getLaunchIntentForPackage(packageName)
             ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -101,8 +101,9 @@ fun CockpitPage(
         val target = DetectionConfig.targetFor(appId)
         AppControlSheet(
             appId = appId,
-            label = target?.label ?: appId,
+            label = target?.label ?: com.lifesaver.LifesaverApp.instance.container.installedApps.labelFor(appId),
             surfaceName = target?.fastSurfaceName ?: "Reels",
+            isTarget = target != null,
             settings = state.settings,
             onChangeBudget = onChangeBudget,
             onSetReelsLimit = onSetReelsLimit,
@@ -154,16 +155,29 @@ private fun HeroRing(state: DashboardState) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun BudgetTiles(state: DashboardState, onTileClick: (String) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        DetectionConfig.targets.forEach { target ->
-            val usage = state.todayUsageMsByApp[target.appId] ?: 0L
-            val budget = state.settings.budgetMs(target.appId)
+    // Known targets first, then any custom user-added apps.
+    val apps = remember(state.settings.enabledApps) {
+        val targetIds = DetectionConfig.targets.map { it.appId }
+        (targetIds + state.settings.enabledApps.filter { it !in targetIds }).distinct()
+    }
+    val installedApps = com.lifesaver.LifesaverApp.instance.container.installedApps
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        maxItemsInEachRow = 2,
+    ) {
+        apps.forEach { appId ->
+            val label = remember(appId) { DetectionConfig.targetFor(appId)?.label ?: installedApps.labelFor(appId) }
+            val usage = state.todayUsageMsByApp[appId] ?: 0L
+            val budget = state.settings.budgetMs(appId)
             val remainingMin = BudgetEngine.remainingMinutes(budget, usage, 0)
             val fraction = BudgetEngine.remainingFraction(budget, usage, 0)
-            GlassTile(modifier = Modifier.weight(1f).clickableNoRipple(onClick = { onTileClick(target.appId) })) {
-                Text(target.label, style = MaterialTheme.typography.titleMedium, color = TextSecondary)
+            GlassTile(modifier = Modifier.weight(1f).clickableNoRipple(onClick = { onTileClick(appId) })) {
+                Text(label, style = MaterialTheme.typography.titleMedium, color = TextSecondary, maxLines = 1)
                 Spacer(Modifier.height(10.dp))
                 Box(contentAlignment = Alignment.Center) {
                     RingGauge(

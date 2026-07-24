@@ -29,6 +29,7 @@ object Routes {
     const val REPORT = "report"
     const val BUDDY = "buddy"
     const val FUTURE_SELF = "future_self"
+    const val MANAGE_APPS = "manage_apps"
 }
 
 @Composable
@@ -99,6 +100,16 @@ fun LifesaverNavHost(
                 onOpenBuddy = { nav.navigate(Routes.BUDDY) },
                 onOpenFutureSelf = { nav.navigate(Routes.FUTURE_SELF) },
                 onSetBreatheReminder = vm::setBreatheReminder,
+                onManageApps = { nav.navigate(Routes.MANAGE_APPS) },
+                onBack = { nav.popBackStack() },
+            )
+        }
+        composable(Routes.MANAGE_APPS) {
+            com.lifesaver.ui.apps.ManageAppsScreen(
+                enabledApps = state.settings.enabledApps,
+                loadCatalog = vm::loadAppCatalog,
+                onAddApp = vm::addEnabledApp,
+                onRemoveApp = vm::removeEnabledApp,
                 onBack = { nav.popBackStack() },
             )
         }

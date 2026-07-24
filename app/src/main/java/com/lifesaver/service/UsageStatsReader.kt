@@ -58,6 +58,29 @@ class UsageStatsReader(private val context: Context) {
     fun dayKeyNow(): String = DayKeys.todayKey()
 
     /**
+     * Average daily foreground millis per package over the last [daysBack] days, across ALL apps
+     * (not just targets) — powers the "apps you might want to limit" suggestions. Sorted desc.
+     * Call off the main thread.
+     */
+    fun avgDailyUsageAllApps(daysBack: Int = 7, zone: ZoneId = ZoneId.systemDefault()): Map<String, Long> {
+        val now = System.currentTimeMillis()
+        val start = now - daysBack.toLong() * 24 * 60 * 60 * 1000
+        val stats = runCatching {
+            usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, now)
+        }.getOrNull().orEmpty()
+        val totals = HashMap<String, Long>()
+        val dates = HashSet<LocalDate>()
+        for (us in stats) {
+            if (us.totalTimeInForeground <= 0) continue
+            dates.add(Instant.ofEpochMilli(us.firstTimeStamp).atZone(zone).toLocalDate())
+            totals.merge(us.packageName, us.totalTimeInForeground, Long::plus)
+        }
+        val days = dates.size.coerceAtLeast(1)
+        return totals.mapValues { it.value / days }
+            .entries.sortedByDescending { it.value }.associate { it.key to it.value }
+    }
+
+    /**
      * Builds a baseline + insight picture from the system's own usage history. Daily totals (up to
      * [daysBack]) drive the weekday/weekend averages; recent event history (whatever the system
      * retained, ~a week) drives the hour-of-day risk windows. Call off the main thread.

@@ -51,6 +51,7 @@ fun SettingsScreen(
     onOpenBuddy: () -> Unit,
     onOpenFutureSelf: () -> Unit,
     onSetBreatheReminder: (Int) -> Unit,
+    onManageApps: () -> Unit,
     onBack: () -> Unit,
 ) {
     com.lifesaver.ui.components.glass.GlassScreen(title = "Settings", onBack = onBack, seed = 3) { padding ->
@@ -64,9 +65,23 @@ fun SettingsScreen(
             }
 
             Text(
-                "Tip: tap the Instagram/YouTube tiles on the cockpit to set budgets, Reels limits and lock hours per app.",
+                "Tip: tap an app tile on the cockpit to set budgets, Reels limits and lock hours per app.",
                 style = MaterialTheme.typography.bodySmall,
             )
+
+            Category("APPS")
+            LifesaverCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Tracked apps", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Add any app (not just Instagram/YouTube), see high-usage suggestions.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    FlatButton("Manage", onClick = onManageApps)
+                }
+            }
 
             Category("SCROLL DETERRENTS")
             GrayscaleSetting(enabled = state.settings.grayscaleOnReels, onChange = onSetGrayscale)

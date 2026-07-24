@@ -130,7 +130,9 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshUsageStats() {
         viewModelScope.launch {
-            usageStatsFlow.value = container.usageReader.todayByApp(DetectionConfig.targetPackages)
+            // Include custom user-added apps, not just the built-in targets.
+            val apps = container.settings.current().enabledApps + DetectionConfig.targetPackages
+            usageStatsFlow.value = container.usageReader.todayByApp(apps)
             savedFlow.value = computeSaved()
         }
     }
@@ -239,6 +241,28 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
     fun setBreatheReminder(minutes: Int) {
         viewModelScope.launch { container.settings.setBreatheReminderMin(minutes) }
     }
+
+    fun addEnabledApp(pkg: String) {
+        viewModelScope.launch {
+            val s = container.settings.current()
+            if (pkg !in s.enabledApps) container.settings.setEnabledApps(s.enabledApps + pkg)
+        }
+    }
+
+    fun removeEnabledApp(pkg: String) {
+        viewModelScope.launch {
+            val s = container.settings.current()
+            container.settings.setEnabledApps(s.enabledApps - pkg)
+        }
+    }
+
+    /** Installed apps + their avg daily usage, for the "manage apps" picker & suggestions. */
+    suspend fun loadAppCatalog(): com.lifesaver.ui.apps.AppCatalog =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val installed = container.installedApps.launchable()
+            val usage = runCatching { container.usageReader.avgDailyUsageAllApps() }.getOrDefault(emptyMap())
+            com.lifesaver.ui.apps.AppCatalog(installed, usage)
+        }
 
     /** null = no separate reels limit; 0 = fully blocked; N = N minutes on Reels/Shorts. */
     fun setReelsLimit(appId: String, minutes: Int?) {

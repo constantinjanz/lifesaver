@@ -38,6 +38,7 @@ fun AppControlSheet(
     appId: String,
     label: String,
     surfaceName: String,
+    isTarget: Boolean,
     settings: Settings,
     onChangeBudget: (String, Int) -> Unit,
     onSetReelsLimit: (String, Int?) -> Unit,
@@ -62,29 +63,31 @@ fun AppControlSheet(
                 Text("Loosening applies after 24h; tightening is instant.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 Spacer(Modifier.height(16.dp))
 
-                // Reels/Shorts limit.
-                val reelsLimit = settings.reelsLimitMin(appId)
-                var reelsOn by remember { mutableStateOf(reelsLimit != null) }
-                var reelsValue by remember { mutableStateOf((reelsLimit ?: minOf(10, budget.toInt())).toFloat()) }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Limit $surfaceName", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    Switch(checked = reelsOn, onCheckedChange = {
-                        reelsOn = it
-                        onSetReelsLimit(appId, if (it) reelsValue.toInt() else null)
-                    })
+                // Reels/Shorts limit — only for the known targets (custom apps have no fast surface).
+                if (isTarget) {
+                    val reelsLimit = settings.reelsLimitMin(appId)
+                    var reelsOn by remember { mutableStateOf(reelsLimit != null) }
+                    var reelsValue by remember { mutableStateOf((reelsLimit ?: minOf(10, budget.toInt())).toFloat()) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Limit $surfaceName", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        Switch(checked = reelsOn, onCheckedChange = {
+                            reelsOn = it
+                            onSetReelsLimit(appId, if (it) reelsValue.toInt() else null)
+                        })
+                    }
+                    if (reelsOn) {
+                        Slider(
+                            value = reelsValue, onValueChange = { reelsValue = it },
+                            onValueChangeFinished = { onSetReelsLimit(appId, reelsValue.toInt()) },
+                            valueRange = 0f..budget, steps = 0,
+                        )
+                        Text(
+                            if (reelsValue.toInt() == 0) "$surfaceName fully blocked" else "Max ${reelsValue.toInt()} min on $surfaceName",
+                            style = MaterialTheme.typography.bodySmall, color = Accent,
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
-                if (reelsOn) {
-                    Slider(
-                        value = reelsValue, onValueChange = { reelsValue = it },
-                        onValueChangeFinished = { onSetReelsLimit(appId, reelsValue.toInt()) },
-                        valueRange = 0f..budget, steps = 0,
-                    )
-                    Text(
-                        if (reelsValue.toInt() == 0) "$surfaceName fully blocked" else "Max ${reelsValue.toInt()} min on $surfaceName",
-                        style = MaterialTheme.typography.bodySmall, color = Accent,
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
 
                 // Lock hours (multiple windows allowed, e.g. morning + evening).
                 LockHours(windows = settings.windowsFor(appId), onChange = { onSetBlockedWindows(appId, it) })

@@ -174,7 +174,9 @@ class LifesaverAccessibilityService : AccessibilityService() {
         // Any window change means we may have left Reels — drop grayscale until re-detected.
         clearGrayscale()
         lastForegroundPackage = pkg
-        val isTarget = DetectionConfig.isTarget(pkg) && pkg in settings.enabledApps
+        // Any enabled app is budgeted/paused (custom user-added apps too). Reels/Shorts detection
+        // still only runs for the known targets (Instagram/YouTube) — see maybeScan.
+        val isTarget = pkg in settings.enabledApps
         lastForegroundIsTarget = isTarget
         if (pkg == currentApp) return
 
@@ -308,7 +310,7 @@ class LifesaverAccessibilityService : AccessibilityService() {
                     notifications.showUsage(
                         notifId(app),
                         notifications.buildUsageNotification(
-                            DetectionConfig.targetFor(app)?.label ?: app,
+                            appLabel(app),
                             (a.remainingMs / 60_000L).toInt(),
                         ),
                     )
@@ -361,7 +363,7 @@ class LifesaverAccessibilityService : AccessibilityService() {
         markEnforced(app)
         ownUiForeground = true
         main.post {
-            val label = DetectionConfig.targetFor(app)?.label ?: app
+            val label = appLabel(app)
             val intent = Intent(this, InterventionActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 .putExtra(InterventionActivity.EXTRA_APP_ID, app)
@@ -392,7 +394,7 @@ class LifesaverAccessibilityService : AccessibilityService() {
                 // the user actually leaves to another app or home.
                 blockLatchApp = app
             }
-            val label = DetectionConfig.targetFor(app)?.label ?: app
+            val label = appLabel(app)
             val intent = Intent(this, BlockActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 .putExtra(BlockActivity.EXTRA_APP_ID, app)
@@ -411,6 +413,10 @@ class LifesaverAccessibilityService : AccessibilityService() {
     // so there's no observation period to wait through.
     private fun enforcing(): Boolean =
         settings.onboardingComplete && !settings.isPaused(System.currentTimeMillis())
+
+    /** Curated label for known targets, otherwise the installed-app label (custom apps). */
+    private fun appLabel(app: String): String =
+        DetectionConfig.targetFor(app)?.label ?: LifesaverApp.instance.container.installedApps.labelFor(app)
 
     private fun notifId(app: String) = Notifications.USAGE_NOTIFICATION_ID_BASE + app.hashCode()
 
