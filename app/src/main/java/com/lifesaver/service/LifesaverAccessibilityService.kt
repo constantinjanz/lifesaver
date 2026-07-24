@@ -173,7 +173,13 @@ class LifesaverAccessibilityService : AccessibilityService() {
         // PiP window), do NOT re-enforce — that's what made the block screen re-pop in a loop. Only
         // a real exit (a different, non-self app to the front) clears it and re-arms enforcement.
         blockLatchApp?.let { latched ->
-            if (pkg == latched) return
+            if (pkg == latched) {
+                // The blocked app is still up front. Keep suppressing ONLY while it's a small PiP
+                // window (so a video replaying in Picture-in-Picture can't re-pop the block in a
+                // loop). A full-screen re-open falls through below and re-blocks immediately — that
+                // was the bypass: the old blanket latch let you re-open and use the app freely.
+                if (isTargetInSmallWindow(pkg)) return
+            }
             blockLatchApp = null
         }
         // Left the admitted app (anything other than it comes to the front) → revoke admission, so
@@ -454,6 +460,14 @@ class LifesaverAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** The user closed/back'd the block screen. Drop the latch + cooldown so re-opening the app
+     *  re-blocks right away instead of being briefly usable. */
+    private fun blockDismissed(app: String) {
+        if (blockLatchApp == app) blockLatchApp = null
+        if (lastEnforceApp == app) lastEnforceAtMs = 0L
+        ownUiForeground = false
+    }
+
     companion object {
         private const val TICK_MS = 5_000L
         private const val DETECT_DEBOUNCE_MS = 500L
@@ -467,6 +481,9 @@ class LifesaverAccessibilityService : AccessibilityService() {
 
         /** Called when the user leaves the pause without passing (Back/Close/redirect). */
         fun deny(app: String) { self?.deny(app) }
+
+        /** Called when the user closes/back's the block screen. */
+        fun blockDismissed(app: String) { self?.blockDismissed(app) }
 
         @Volatile var isConnected: Boolean = false; private set
         @Volatile var lastForegroundPackage: String? = null; private set

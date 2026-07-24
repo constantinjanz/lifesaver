@@ -56,9 +56,11 @@ import kotlinx.coroutines.launch
  */
 class BlockActivity : ComponentActivity() {
 
+    private var appId: String = ""
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val appId = intent.getStringExtra(EXTRA_APP_ID) ?: ""
+        appId = intent.getStringExtra(EXTRA_APP_ID) ?: ""
         val label = intent.getStringExtra(EXTRA_APP_LABEL) ?: appId
         val scheduled = intent.getBooleanExtra(EXTRA_SCHEDULED, false)
         val untilMin = intent.getIntExtra(EXTRA_UNTIL_MIN, -1)
@@ -110,6 +112,8 @@ class BlockActivity : ComponentActivity() {
     }
 
     private fun goHome() {
+        // Re-opening the blocked app must block again right away, not be briefly usable.
+        com.lifesaver.service.LifesaverAccessibilityService.blockDismissed(appId)
         startActivity(
             Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
