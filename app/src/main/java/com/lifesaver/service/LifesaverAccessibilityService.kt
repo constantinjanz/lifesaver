@@ -440,11 +440,18 @@ class LifesaverAccessibilityService : AccessibilityService() {
         lastBreatheAtMs[app] = System.currentTimeMillis()
     }
 
-    /** The user dismissed the pause (Back/Close/redirect) without passing — force a re-pause on the
-     *  next open by clearing admission and the enforce cooldown so nothing is skipped. */
+    /** The user dismissed the pause (Back/Close/redirect) without passing. Force the next open to be
+     *  a fresh entry that pauses again — don't rely on seeing a home/other-app event first (some
+     *  launchers don't emit one on the way out). We clear admission, the enforce cooldown, our-UI
+     *  flag, and the session itself, so onForegroundPackage no longer short-circuits on re-open. */
     private fun deny(app: String) {
-        if (admittedApp == app) admittedApp = null
+        admittedApp = null
         if (lastEnforceApp == app) lastEnforceAtMs = 0L
+        ownUiForeground = false
+        if (currentApp == app) {
+            currentApp = null
+            stopTicker()
+        }
     }
 
     companion object {
