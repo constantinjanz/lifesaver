@@ -5,6 +5,7 @@ import com.lifesaver.data.DailyStatus
 import com.lifesaver.data.Strictness
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -163,6 +164,21 @@ class ScheduleBlockTest {
     @Test fun disabledWhenEqual() {
         assertFalse(ScheduleBlock.isBlocked(BlockWindow(60, 60), 60))
         assertFalse(ScheduleBlock.isBlocked(null, 60))
+    }
+
+    @Test fun multipleWindowsMorningAndEvening() {
+        val windows = listOf(BlockWindow(7 * 60, 10 * 60), BlockWindow(21 * 60, 23 * 60))
+        assertTrue(ScheduleBlock.isBlockedAny(windows, 8 * 60))   // in morning
+        assertTrue(ScheduleBlock.isBlockedAny(windows, 22 * 60))  // in evening
+        assertFalse(ScheduleBlock.isBlockedAny(windows, 15 * 60)) // between → open
+        assertFalse(ScheduleBlock.isBlockedAny(emptyList(), 8 * 60))
+    }
+
+    @Test fun activeWindowPicksTheOneInEffect() {
+        val morning = BlockWindow(7 * 60, 10 * 60)
+        val evening = BlockWindow(21 * 60, 23 * 60)
+        assertEquals(evening, ScheduleBlock.activeWindow(listOf(morning, evening), 22 * 60))
+        assertNull(ScheduleBlock.activeWindow(listOf(morning, evening), 15 * 60))
     }
 }
 

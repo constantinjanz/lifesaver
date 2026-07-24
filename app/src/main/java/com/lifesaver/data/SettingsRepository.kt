@@ -41,6 +41,7 @@ class SettingsRepository(private val context: Context) {
         val BUDDY_LABEL = stringPreferencesKey("buddy_label")
         val REELS_LIMITS = stringPreferencesKey("reels_limits_json")
         val GRAYSCALE = booleanPreferencesKey("grayscale_on_reels")
+        val BREATHE_MIN = androidx.datastore.preferences.core.intPreferencesKey("breathe_reminder_min")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p ->
@@ -66,6 +67,7 @@ class SettingsRepository(private val context: Context) {
             buddyPairingId = p[Keys.BUDDY_PAIRING],
             buddyLabel = p[Keys.BUDDY_LABEL],
             grayscaleOnReels = p[Keys.GRAYSCALE] ?: false,
+            breatheReminderMin = p[Keys.BREATHE_MIN] ?: 0,
         )
     }
 
@@ -123,10 +125,15 @@ class SettingsRepository(private val context: Context) {
         else { it[Keys.BUDDY_PAIRING] = pairingId; it[Keys.BUDDY_LABEL] = label ?: "your buddy" }
     }
 
-    /** Set (or clear, if window is null) an app's daily hard-block window. */
-    suspend fun setBlockedWindow(appId: String, window: com.lifesaver.domain.BlockWindow?) = edit { prefs ->
+    /** Show a breathe pause every N minutes of continuous use (0 = only on fresh opens). */
+    suspend fun setBreatheReminderMin(minutes: Int) =
+        edit { it[Keys.BREATHE_MIN] = minutes.coerceIn(0, 60) }
+
+    /** Replace an app's daily hard-block windows (empty list clears them). Disabled windows dropped. */
+    suspend fun setBlockedWindows(appId: String, windows: List<com.lifesaver.domain.BlockWindow>) = edit { prefs ->
         val map = Settings.windowsFromJson(prefs[Keys.BLOCKED_WINDOWS]).toMutableMap()
-        if (window == null || !window.enabled) map.remove(appId) else map[appId] = window
+        val enabled = windows.filter { it.enabled }
+        if (enabled.isEmpty()) map.remove(appId) else map[appId] = enabled
         prefs[Keys.BLOCKED_WINDOWS] = Settings.windowsToJson(map)
     }
 

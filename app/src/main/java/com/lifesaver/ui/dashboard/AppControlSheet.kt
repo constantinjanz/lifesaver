@@ -1,5 +1,6 @@
 package com.lifesaver.ui.dashboard
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,7 +41,7 @@ fun AppControlSheet(
     settings: Settings,
     onChangeBudget: (String, Int) -> Unit,
     onSetReelsLimit: (String, Int?) -> Unit,
-    onSetBlockedWindow: (String, BlockWindow?) -> Unit,
+    onSetBlockedWindows: (String, List<BlockWindow>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -85,8 +86,8 @@ fun AppControlSheet(
                 }
                 Spacer(Modifier.height(16.dp))
 
-                // Lock hours.
-                LockRow(appId, surfaceLabel = label, window = settings.blockedWindow(appId), onChange = { onSetBlockedWindow(appId, it) })
+                // Lock hours (multiple windows allowed, e.g. morning + evening).
+                LockHours(windows = settings.windowsFor(appId), onChange = { onSetBlockedWindows(appId, it) })
 
                 Spacer(Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -98,24 +99,37 @@ fun AppControlSheet(
 }
 
 @Composable
-private fun LockRow(appId: String, surfaceLabel: String, window: BlockWindow?, onChange: (BlockWindow?) -> Unit) {
+private fun LockHours(windows: List<BlockWindow>, onChange: (List<BlockWindow>) -> Unit) {
     val context = LocalContext.current
-    val enabled = window != null
-    val start = window?.startMinute ?: 7 * 60
-    val end = window?.endMinute ?: 10 * 60
     fun pick(initial: Int, onPicked: (Int) -> Unit) {
         android.app.TimePickerDialog(context, { _, h, m -> onPicked(h * 60 + m) }, initial / 60, initial % 60, true).show()
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("Lock hours", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-        Switch(checked = enabled, onCheckedChange = { on -> onChange(if (on) BlockWindow(start, end) else null) })
+        Switch(
+            checked = windows.isNotEmpty(),
+            onCheckedChange = { on -> onChange(if (on) listOf(BlockWindow(7 * 60, 10 * 60)) else emptyList()) },
+        )
     }
-    if (enabled) {
+    if (windows.isNotEmpty()) {
         Text("Fully blocked — no budget, no unlock — during:", style = MaterialTheme.typography.bodySmall, color = Warning)
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassPill("From ${ScheduleBlock.format(start)}", onClick = { pick(start) { onChange(BlockWindow(it, end)) } })
-            GlassPill("To ${ScheduleBlock.format(end)}", onClick = { pick(end) { onChange(BlockWindow(start, it)) } })
+        Spacer(Modifier.height(8.dp))
+        windows.forEachIndexed { i, w ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GlassPill("From ${ScheduleBlock.format(w.startMinute)}", onClick = {
+                    pick(w.startMinute) { m -> onChange(windows.replaceAt(i, BlockWindow(m, w.endMinute))) }
+                })
+                GlassPill("To ${ScheduleBlock.format(w.endMinute)}", onClick = {
+                    pick(w.endMinute) { m -> onChange(windows.replaceAt(i, BlockWindow(w.startMinute, m))) }
+                })
+                Text("Remove", style = MaterialTheme.typography.bodySmall, color = TextSecondary,
+                    modifier = Modifier.clickable { onChange(windows.filterIndexed { j, _ -> j != i }) })
+            }
+            Spacer(Modifier.height(8.dp))
         }
+        GlassPill("+ Add window", onClick = { onChange(windows + BlockWindow(21 * 60, 23 * 60)) })
     }
 }
+
+private fun List<BlockWindow>.replaceAt(index: Int, w: BlockWindow): List<BlockWindow> =
+    mapIndexed { i, old -> if (i == index) w else old }

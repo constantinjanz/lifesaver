@@ -55,6 +55,12 @@ class LifesaverAccessibilityService : AccessibilityService() {
     @Volatile private var lastEnforceApp: String? = null
     @Volatile private var lastEnforceAtMs = 0L
     @Volatile private var grayscaleActive = false
+    // After a FULL/scheduled block we latch the app: while it stays foreground (incl. YouTube PiP),
+    // we don't re-enforce. Cleared only when a different, non-self app comes to the front (real exit).
+    @Volatile private var blockLatchApp: String? = null
+    // Last time we showed a breathe pause per app — throttles the pause so it never stacks
+    // back-to-back and drives the "every N minutes" reminder.
+    private val lastBreatheAtMs = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -158,6 +164,13 @@ class LifesaverAccessibilityService : AccessibilityService() {
     private fun onForegroundPackage(pkg: String) {
         // A non-self app is on top, so our overlay is no longer covering anything.
         ownUiForeground = false
+        // Block latch: while the just-blocked app stays up front (e.g. YouTube keeps playing in a
+        // PiP window), do NOT re-enforce — that's what made the block screen re-pop in a loop. Only
+        // a real exit (a different, non-self app to the front) clears it and re-arms enforcement.
+        blockLatchApp?.let { latched ->
+            if (pkg == latched) return
+            blockLatchApp = null
+        }
         // Any window change means we may have left Reels — drop grayscale until re-detected.
         clearGrayscale()
         lastForegroundPackage = pkg
@@ -182,12 +195,13 @@ class LifesaverAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** True if [app] is inside its configured daily hard-block window right now (local time). */
+    /** True if [app] is inside any of its configured daily hard-block windows right now (local time). */
     private fun isScheduledBlockedNow(app: String): Boolean {
         if (!settings.onboardingComplete) return false
-        val window = settings.blockedWindow(app) ?: return false
+        val windows = settings.windowsFor(app)
+        if (windows.isEmpty()) return false
         val now = java.time.LocalTime.now()
-        return ScheduleBlock.isBlocked(window, now.hour * 60 + now.minute)
+        return ScheduleBlock.isBlockedAny(windows, now.hour * 60 + now.minute)
     }
 
     /** True if [pkg]'s window covers only a small part of the screen (PiP / floating). Best-effort. */
@@ -298,6 +312,15 @@ class LifesaverAccessibilityService : AccessibilityService() {
                             (a.remainingMs / 60_000L).toInt(),
                         ),
                     )
+                    // Periodic breathe reminder mid-session (user setting). The gap check inside
+                    // triggerIntervention keeps it from stacking; here we just offer one on schedule.
+                    if (settings.breatheReminderMin > 0 &&
+                        System.currentTimeMillis() - (lastBreatheAtMs[app] ?: 0L) >= settings.breatheReminderMin * 60_000L
+                    ) {
+                        val openIndex = db.interventionDao().openCountToday(app, dayKey) + 1
+                        val friction = FrictionLadder.pauseSeconds(openIndex, settings.strictness)
+                        triggerIntervention(app, openIndex, friction, (a.remainingMs / 60_000L).toInt().coerceAtLeast(0))
+                    }
                 }
             }
         }
@@ -321,8 +344,20 @@ class LifesaverAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** Minimum gap between breathe pauses for an app: the reminder interval, or a 90s anti-churn
+     *  floor when reminders are off, so window churn can't stack pauses back-to-back. */
+    private fun breatheGapMs(): Long {
+        val min = settings.breatheReminderMin
+        return if (min > 0) min * 60_000L else 90_000L
+    }
+
     private fun triggerIntervention(app: String, openIndex: Int, friction: Int, minutesLeft: Int) {
         if (!canEnforceNow(app)) return
+        // Don't re-pause within the breathe gap — fixes back-to-back breathe screens from IG story/
+        // reel sub-windows briefly stealing and returning the foreground.
+        val since = System.currentTimeMillis() - (lastBreatheAtMs[app] ?: 0L)
+        if (since < breatheGapMs()) return
+        lastBreatheAtMs[app] = System.currentTimeMillis()
         markEnforced(app)
         ownUiForeground = true
         main.post {
@@ -342,7 +377,10 @@ class LifesaverAccessibilityService : AccessibilityService() {
         if (!canEnforceNow(app)) return
         markEnforced(app)
         ownUiForeground = true
-        val untilMin = if (scheduled) settings.blockedWindow(app)?.endMinute ?: -1 else -1
+        val untilMin = if (scheduled) {
+            val now = java.time.LocalTime.now()
+            ScheduleBlock.activeWindow(settings.windowsFor(app), now.hour * 60 + now.minute)?.endMinute ?: -1
+        } else -1
         main.post {
             // A reels block only walls off the fast surface — keep the session alive so the rest of
             // the app (posts/DMs) still accounts. A full/scheduled block ends the session so a PiP
@@ -350,6 +388,9 @@ class LifesaverAccessibilityService : AccessibilityService() {
             if (!reels) {
                 stopTicker()
                 if (currentApp == app) currentApp = null
+                // Latch the blocked app: PiP / window churn on it won't re-trigger the block until
+                // the user actually leaves to another app or home.
+                blockLatchApp = app
             }
             val label = DetectionConfig.targetFor(app)?.label ?: app
             val intent = Intent(this, BlockActivity::class.java)

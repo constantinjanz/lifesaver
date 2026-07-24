@@ -23,5 +23,13 @@ object ScheduleBlock {
         }
     }
 
+    /** True if ANY of an app's windows is active now (multiple windows: e.g. morning + evening). */
+    fun isBlockedAny(windows: List<BlockWindow>, nowMinuteOfDay: Int): Boolean =
+        windows.any { isBlocked(it, nowMinuteOfDay) }
+
+    /** The window currently in effect (for "locked until …"), or null if none is active now. */
+    fun activeWindow(windows: List<BlockWindow>, nowMinuteOfDay: Int): BlockWindow? =
+        windows.firstOrNull { isBlocked(it, nowMinuteOfDay) }
+
     fun format(minuteOfDay: Int): String = "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)
 }

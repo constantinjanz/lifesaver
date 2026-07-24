@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -217,11 +218,15 @@ private fun InterventionContent(
     )
 
     Column(
-        modifier = Modifier.fillMaxSize().alpha(enter).padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .alpha(enter)
+            .systemBarsPadding() // keep Close/Continue clear of the gesture nav bar
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Spacer(Modifier.height((16 + 24 * (1 - enter)).dp))
+        Spacer(Modifier.height((8 + 16 * (1 - enter)).dp))
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             RingGauge(progress = elapsed, diameter = 190.dp, modifier = Modifier.scale(breathe)) {
                 Text("Breathe", style = MaterialTheme.typography.titleMedium, color = Accent)

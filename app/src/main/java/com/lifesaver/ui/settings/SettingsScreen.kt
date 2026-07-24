@@ -50,6 +50,7 @@ fun SettingsScreen(
     onOpenCheckin: () -> Unit,
     onOpenBuddy: () -> Unit,
     onOpenFutureSelf: () -> Unit,
+    onSetBreatheReminder: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
     com.lifesaver.ui.components.glass.GlassScreen(title = "Settings", onBack = onBack, seed = 3) { padding ->
@@ -72,6 +73,9 @@ fun SettingsScreen(
 
             Category("FRICTION")
             StrictnessSetting(state.settings.strictness, onChangeStrictness)
+
+            Category("BREATHE REMINDER")
+            BreatheReminderSetting(state.settings.breatheReminderMin, onSetBreatheReminder)
 
             Category("BUDDY UNLOCK")
             LifesaverCard {
@@ -263,6 +267,24 @@ private fun BlockWindowSetting(
                     "Start and end can't be the same.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Warning,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BreatheReminderSetting(currentMin: Int, onChange: (Int) -> Unit) {
+    val options = listOf(0 to "Off", 5 to "5 min", 10 to "10 min", 15 to "15 min", 30 to "30 min")
+    LifesaverCard {
+        Text("Re-surface a breathe pause after this long in a target app.", style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { (min, lbl) ->
+                FilterChip(
+                    selected = min == currentMin,
+                    onClick = { onChange(min) },
+                    label = { Text(lbl) },
                 )
             }
         }

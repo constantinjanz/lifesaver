@@ -66,7 +66,7 @@ fun CockpitPage(
     onFixPermissions: () -> Unit,
     onChangeBudget: (String, Int) -> Unit,
     onSetReelsLimit: (String, Int?) -> Unit,
-    onSetBlockedWindow: (String, com.lifesaver.domain.BlockWindow?) -> Unit,
+    onSetBlockedWindows: (String, List<com.lifesaver.domain.BlockWindow>) -> Unit,
 ) {
     val topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
     var sheetApp by remember { mutableStateOf<String?>(null) }
@@ -106,7 +106,7 @@ fun CockpitPage(
             settings = state.settings,
             onChangeBudget = onChangeBudget,
             onSetReelsLimit = onSetReelsLimit,
-            onSetBlockedWindow = onSetBlockedWindow,
+            onSetBlockedWindows = onSetBlockedWindows,
             onDismiss = { sheetApp = null },
         )
     }

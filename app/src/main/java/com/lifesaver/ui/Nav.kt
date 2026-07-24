@@ -73,7 +73,7 @@ fun LifesaverNavHost(
                 onFixPermissions = { nav.navigate(Routes.ONBOARDING) },
                 onChangeBudget = vm::changeBudget,
                 onSetReelsLimit = vm::setReelsLimit,
-                onSetBlockedWindow = vm::setBlockedWindow,
+                onSetBlockedWindows = vm::setBlockedWindows,
                 loadPatterns = vm::loadPatterns,
                 lifeLogsFlow = lifeFlow,
                 lifeFocusArea = state.settings.weeklyFocusArea,
@@ -98,6 +98,7 @@ fun LifesaverNavHost(
                 onOpenCheckin = { nav.navigate(Routes.CHECKIN) },
                 onOpenBuddy = { nav.navigate(Routes.BUDDY) },
                 onOpenFutureSelf = { nav.navigate(Routes.FUTURE_SELF) },
+                onSetBreatheReminder = vm::setBreatheReminder,
                 onBack = { nav.popBackStack() },
             )
         }

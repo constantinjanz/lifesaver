@@ -232,8 +232,12 @@ class LifesaverViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { db.pendingChangeDao().cancel(id) }
     }
 
-    fun setBlockedWindow(appId: String, window: com.lifesaver.domain.BlockWindow?) {
-        viewModelScope.launch { container.settings.setBlockedWindow(appId, window) }
+    fun setBlockedWindows(appId: String, windows: List<com.lifesaver.domain.BlockWindow>) {
+        viewModelScope.launch { container.settings.setBlockedWindows(appId, windows) }
+    }
+
+    fun setBreatheReminder(minutes: Int) {
+        viewModelScope.launch { container.settings.setBreatheReminderMin(minutes) }
     }
 
     /** null = no separate reels limit; 0 = fully blocked; N = N minutes on Reels/Shorts. */
